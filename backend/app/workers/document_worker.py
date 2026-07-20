@@ -6,6 +6,10 @@ from app.db.postgres import SessionLocal
 from app.models.document import ProcessingJob, Document, DocumentVersion, DocumentChunk
 from app.services.parser_service import ParserService
 from app.services.chunking_service import ChunkingService
+from app.services.embedding_service import EmbeddingService
+from app.services.graph_extraction_service import GraphExtractionService
+from app.services.graph_service import GraphService
+from app.services.bm25_service import BM25Service
 from app.core.logging import logger
 
 def process_job(db: Session, job: ProcessingJob):
@@ -32,6 +36,7 @@ def process_job(db: Session, job: ProcessingJob):
         chunks_data = ChunkingService.chunk_document(parsed_items)
         
         # Save chunks to PostgreSQL
+        chunks = []
         for item in chunks_data:
             chunk = DocumentChunk(
                 document_id=doc.id,
@@ -45,7 +50,33 @@ def process_job(db: Session, job: ProcessingJob):
                 chunk_order=item["chunk_order"],
                 is_active=True
             )
+            # Call Embedding API
+            try:
+                chunk.embedding = EmbeddingService.get_embedding(chunk.content)
+            except Exception as emb_err:
+                logger.error(f"Failed to generate embedding for chunk {chunk.chunk_order}: {str(emb_err)}")
+                chunk.embedding = None
+                
             db.add(chunk)
+            chunks.append(chunk)
+            
+        db.flush() # Populate chunk IDs to link in Neo4j evidence
+        
+        # Extract graph and save to Neo4j for each chunk
+        for chunk in chunks:
+            try:
+                entities, relationships = GraphExtractionService.extract_graph(chunk.content)
+                if entities or relationships:
+                    GraphService.save_extracted_graph(
+                        document_id=str(doc.id),
+                        version_id=str(version.id),
+                        chunk_id=str(chunk.id),
+                        document_title=doc.original_file_name,
+                        entities=entities,
+                        relationships=relationships
+                    )
+            except Exception as graph_err:
+                logger.error(f"Failed to extract or save graph for chunk {chunk.chunk_order}: {str(graph_err)}")
             
         # Deactivate old versions and their chunks if processing succeeded
         if version:
@@ -70,6 +101,10 @@ def process_job(db: Session, job: ProcessingJob):
         job.status = "READY"
         job.completed_at = func.now()
         db.commit()
+        
+        # Rebuild BM25 index after document is successfully READY
+        BM25Service.rebuild_index()
+        
         logger.info(f"Successfully processed document '{doc.original_file_name}' (Job: {job.id})")
         
     except Exception as e:

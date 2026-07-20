@@ -13,5 +13,17 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  neo4j:
+    image: neo4j:5.12-community
+    container_name: graphrag_neo4j
+    ports:
+      - "7474:7474" # Web Console HTTP
+      - "7687:7687" # Bolt protocol
+    environment:
+      - NEO4J_AUTH=neo4j/password
+    volumes:
+      - neo4jdata:/data
+
 volumes:
   pgdata:
+  neo4jdata:

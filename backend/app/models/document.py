@@ -1,5 +1,6 @@
 import uuid
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text, JSON, Index
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -59,8 +60,18 @@ class DocumentChunk(Base):
     row_start = Column(Integer, nullable=True)
     row_end = Column(Integer, nullable=True)
     chunk_order = Column(Integer, nullable=False)
+    embedding = Column(Vector(768), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "idx_document_chunks_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"}
+        ),
+    )
 
     document = relationship("Document", back_populates="chunks")
     version = relationship("DocumentVersion", back_populates="chunks")
