@@ -1,0 +1,85 @@
+# Vibe coding folder
+vibecode/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv
+venv
+ENV
+env
+.pytest_cache/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Node.js / React
+node_modules/
+/dist
+/build
+.eslintcache
+.stylelintcache
+.npm
+.yarn-clean
+.parcel-cache
+.cache/
+.next/
+/out/
+.nuxt
+.expo/
+
+# Databases and storage
+**/storage/
+pgdata/
+neo4jdata/
+data/
+scratch/*.xlsx
+scratch/*.docx
+
+# IDE / Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
