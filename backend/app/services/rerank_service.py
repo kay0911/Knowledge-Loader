@@ -22,7 +22,7 @@ class RerankService:
         # Extract text content from each chunk
         documents_text = [chunk.content for chunk in chunks]
         
-        url = "https://api.cohere.com/v1/rerank"
+        url = "https://api.cohere.com/v2/rerank"
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
