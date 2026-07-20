@@ -1,6 +1,7 @@
 import re
 from typing import List
 from rank_bm25 import BM25Okapi
+from sqlalchemy.orm import joinedload
 from app.db.postgres import SessionLocal
 from app.models.document import DocumentChunk, Document
 from app.core.logging import logger
@@ -25,7 +26,9 @@ class BM25Service:
         logger.info("Rebuilding BM25 index from PostgreSQL chunks...")
         db = SessionLocal()
         try:
-            chunks = db.query(DocumentChunk).join(
+            chunks = db.query(DocumentChunk).options(
+                joinedload(DocumentChunk.document)
+            ).join(
                 Document, Document.id == DocumentChunk.document_id
             ).filter(
                 DocumentChunk.is_active == True,
