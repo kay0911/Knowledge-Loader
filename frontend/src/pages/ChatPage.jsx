@@ -1,40 +1,66 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import axios from 'axios';
+import { 
+  Send, BookOpen, Clock, AlertTriangle, Layers, 
+  Database, HelpCircle, ArrowRight, Sparkles, Plus, ArrowUp, RefreshCw
+} from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 function ChatPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const logId = searchParams.get('log_id');
+
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState([]);
-  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeCitation, setActiveCitation] = useState(null);
   
   const messagesEndRef = useRef(null);
 
-  // Fetch chat logs history on mount
+  // Load chat session if logId changes
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    if (logId) {
+      const loadLog = async () => {
+        setLoading(true);
+        try {
+          const res = await axios.get(`${API_BASE_URL}/chat/${logId}`);
+          setMessages([
+            { sender: 'user', text: res.data.question },
+            { sender: 'ai', text: res.data.answer, citations: res.data.citations || [] }
+          ]);
+        } catch (err) {
+          console.error("Error loading chat detail:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadLog();
+    } else {
+      setMessages([]);
+    }
+    setActiveCitation(null);
+  }, [logId]);
+
+  // Listen to the custom event for "New Chat"
+  useEffect(() => {
+    const handleNewChat = () => {
+      setSearchParams({});
+      setMessages([]);
+      setActiveCitation(null);
+    };
+    window.addEventListener('new-chat-triggered', handleNewChat);
+    return () => window.removeEventListener('new-chat-triggered', handleNewChat);
+  }, [setSearchParams]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const fetchHistory = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/chat/`);
-      if (response.ok) {
-        const data = await response.json();
-        setHistory(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch chat logs:', err);
-    }
-  };
-
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!question.trim() || loading) return;
 
     const userQuestion = question.trim();
@@ -61,7 +87,10 @@ function ChatPage() {
           citations: data.citations
         };
         setMessages(prev => [...prev, aiMsg]);
-        fetchHistory(); // Refresh history panel
+        // Update URL to match this new session log id
+        if (data.chat_id) {
+          setSearchParams({ log_id: data.chat_id });
+        }
       } else {
         const errData = await response.json();
         const errorMsg = { sender: 'ai', text: `Lỗi: ${errData.detail || 'Không thể lấy phản hồi từ server.'}` };
@@ -76,22 +105,25 @@ function ChatPage() {
     }
   };
 
-  const loadPastSession = (log) => {
-    const userMsg = { sender: 'user', text: log.question };
-    const aiMsg = {
-      sender: 'ai',
-      text: log.answer || 'Không có câu trả lời nào được ghi lại.',
-      citations: log.citations || []
-    };
-    setMessages([userMsg, aiMsg]);
-    setActiveCitation(null);
+  const handleSuggestionClick = (desc) => {
+    setQuestion(desc);
+    // Submit query next tick to allow state update
+    setTimeout(() => {
+      const btn = document.getElementById('chatgpt-send-btn');
+      if (btn) btn.click();
+    }, 50);
   };
+
+  const suggestions = [
+    { title: "Quy định trang phục", desc: "Đi làm có được mặc quần đùi dép lê không?" },
+    { title: "Cấp phát laptop", desc: "Nhân viên mới được cấp dòng máy gì?" },
+    { title: "Thời gian bảo hành", desc: "Bảo hành xe VF9 là bao nhiêu năm?" },
+    { title: "Quy trình hỗ trợ IT", desc: "Cài đặt phần mềm nội bộ liên hệ ai?" }
+  ];
 
   // Helper function to render text and make citations [S1], [S2] clickable
   const renderMessageText = (text, citations = []) => {
     if (!text) return null;
-    
-    // Regex matches [S1], [S2] etc.
     const parts = text.split(/(\[S\d+\])/g);
     
     return parts.map((part, idx) => {
@@ -105,15 +137,15 @@ function ChatPage() {
             key={idx}
             onClick={() => setActiveCitation(citation || null)}
             style={{
-              background: 'rgba(99, 102, 241, 0.25)',
-              border: '1px solid rgba(99, 102, 241, 0.5)',
-              color: '#a5b4fc',
-              borderRadius: '4px',
+              background: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              color: '#34d399',
+              borderRadius: '6px',
               padding: '1px 6px',
               fontSize: '0.8rem',
               fontWeight: 600,
               cursor: 'pointer',
-              margin: '0 2px',
+              margin: '0 3px',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -131,316 +163,258 @@ function ChatPage() {
   };
 
   return (
-    <div style={{ display: 'flex', gap: '20px', flex: 1, minHeight: 'calc(100vh - 120px)' }}>
-      {/* History Panel */}
-      <div className="glass-panel" style={{
-        width: '280px',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '16px',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
-        maxHeight: 'calc(100vh - 120px)'
-      }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>Lịch sử đối thoại</h3>
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {history.length === 0 ? (
-            <div style={{ color: '#64748b', fontSize: '0.85rem', textAlign: 'center', marginTop: '20px' }}>Chưa có cuộc trò chuyện nào</div>
-          ) : (
-            history.map((log) => (
-              <button
-                key={log.id}
-                onClick={() => loadPastSession(log)}
-                style={{
-                  textAlign: 'left',
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
-                  borderRadius: '8px',
-                  padding: '10px 12px',
-                  color: '#94a3b8',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)';
-                  e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.2)';
-                  e.currentTarget.style.color = '#e2e8f0';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = '#94a3b8';
-                }}
-              >
-                {log.question}
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Main Chat Stream */}
-      <div className="glass-panel" style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '20px',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
-        position: 'relative',
-        maxHeight: 'calc(100vh - 120px)'
-      }}>
-        {/* Messages List */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          paddingRight: '8px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          marginBottom: '20px'
+    <div style={{ display: 'flex', height: '100%', width: '100%', position: 'relative' }}>
+      
+      {/* Main Chat Column */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative' }}>
+        
+        {/* Messages Stream */}
+        <div style={{ 
+          flex: 1, 
+          overflowY: 'auto', 
+          padding: '24px 0 160px 0', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          minHeight: 0 
         }}>
           {messages.length === 0 ? (
-            <div style={{
-              flex: 1,
+            // Welcome Page (ChatGPT Style Empty State)
+            <div className="fade-in" style={{
+              maxWidth: '720px',
+              width: '90%',
+              margin: 'auto',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              color: '#64748b',
-              textAlign: 'center',
-              gap: '12px'
+              gap: '40px',
+              padding: '40px 0'
             }}>
+              
+              {/* Bot Avatar Icon */}
               <div style={{
-                width: '60px',
-                height: '60px',
-                borderRadius: '50%',
-                background: 'rgba(99, 102, 241, 0.1)',
+                width: '64px',
+                height: '64px',
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '1.8rem',
-                color: '#6366f1'
-              }}>🤖</div>
-              <div>
-                <h3 style={{ margin: '0 0 4px 0', color: '#cbd5e1' }}>Tôi có thể giúp gì cho bạn?</h3>
-                <p style={{ margin: 0, fontSize: '0.85rem' }}>Hỏi tôi bất cứ câu hỏi nào liên quan đến các tài liệu chính sách bảo hành, hướng dẫn sửa chữa đã tải lên.</p>
+                boxShadow: '0 8px 24px rgba(16, 185, 129, 0.3)',
+                color: '#fff'
+              }}>
+                <Sparkles className="w-8 h-8" />
               </div>
+
+              <h2 style={{ fontSize: '1.8rem', fontWeight: 600, color: '#f9f9f9', margin: 0, textAlign: 'center' }}>
+                Hôm nay tôi có thể giúp gì cho bạn?
+              </h2>
+
+              {/* Suggestions Cards Grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gap: '12px',
+                width: '100%'
+              }}>
+                {suggestions.map((card, idx) => (
+                  <div 
+                    key={idx}
+                    className="chatgpt-suggestion-card"
+                    onClick={() => handleSuggestionClick(card.desc)}
+                  >
+                    <div className="chatgpt-suggestion-title">{card.title}</div>
+                    <div className="chatgpt-suggestion-desc">{card.desc}</div>
+                  </div>
+                ))}
+              </div>
+
             </div>
           ) : (
+            // Messages Rows list
             messages.map((msg, index) => (
-              <div
+              <div 
                 key={index}
-                style={{
-                  display: 'flex',
-                  justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start'
-                }}
+                className={`chatgpt-message-row ${msg.sender === 'user' ? 'user' : 'assistant'} fade-in`}
               >
-                <div style={{
-                  maxWidth: '75%',
-                  padding: '12px 16px',
-                  borderRadius: '12px',
-                  lineHeight: '1.6',
-                  fontSize: '0.9rem',
-                  background: msg.sender === 'user' ? '#4f46e5' : 'rgba(255, 255, 255, 0.03)',
-                  border: msg.sender === 'user' ? 'none' : '1px solid rgba(255, 255, 255, 0.05)',
-                  color: msg.sender === 'user' ? '#ffffff' : '#e2e8f0',
-                  boxShadow: msg.sender === 'user' ? '0 4px 12px rgba(79, 70, 229, 0.3)' : 'none',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {msg.sender === 'user' ? msg.text : renderMessageText(msg.text, msg.citations)}
-                  
-                  {/* Inline list of citations under response */}
-                  {msg.sender === 'ai' && msg.citations && msg.citations.length > 0 && (
-                    <div style={{
-                      marginTop: '12px',
-                      paddingTop: '10px',
-                      borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '8px'
-                    }}>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b', alignSelf: 'center' }}>Trích dẫn:</span>
-                      {msg.citations.map((cit, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setActiveCitation(cit)}
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            borderRadius: '6px',
-                            padding: '3px 8px',
-                            fontSize: '0.75rem',
-                            color: '#94a3b8',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
-                            e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
-                            e.currentTarget.style.color = '#a5b4fc';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                            e.currentTarget.style.color = '#94a3b8';
-                          }}
-                        >
-                          [{cit.source_id}] {cit.file_name}
-                        </button>
-                      ))}
+                <div className="chatgpt-message-content">
+                  <div className={`chatgpt-avatar ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
+                    {msg.sender === 'user' ? 'U' : 'AI'}
+                  </div>
+                  <div className="chatgpt-text">
+                    <div style={{ whiteSpace: 'pre-wrap' }}>
+                      {msg.sender === 'user' ? msg.text : renderMessageText(msg.text, msg.citations)}
                     </div>
-                  )}
+
+                    {/* Inline lists of citations under AI Response */}
+                    {msg.sender === 'ai' && msg.citations && msg.citations.length > 0 && (
+                      <div style={{
+                        marginTop: '16px',
+                        paddingTop: '12px',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '6px',
+                        alignItems: 'center'
+                      }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', marginRight: '4px' }}>Nguồn tài liệu:</span>
+                        {msg.citations.map((cit, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setActiveCitation(cit)}
+                            className="chatgpt-citation-tag"
+                          >
+                            <BookOpen className="w-3 h-3" />
+                            [{cit.source_id}] {cit.file_name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
           )}
           
+          {/* Loading Indicator */}
           {loading && (
-            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              <div style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                color: '#64748b',
-                fontSize: '0.85rem'
-              }}>
-                <span className="spinner" style={{
-                  display: 'inline-block',
-                  width: '12px',
-                  height: '12px',
-                  border: '2px solid rgba(99, 102, 241, 0.3)',
-                  borderTopColor: '#6366f1',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }}></span>
-                Đang tìm kiếm thông tin và tổng hợp câu trả lời...
+            <div className="chatgpt-message-row assistant fade-in">
+              <div className="chatgpt-message-content">
+                <div className="chatgpt-avatar assistant">AI</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#8e8e8e', fontSize: '0.9rem' }}>
+                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                  Đang truy xuất kiến thức & tổng hợp câu trả lời...
+                </div>
               </div>
             </div>
           )}
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '10px' }}>
-          <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Nhập câu hỏi của bạn tại đây... (Ví dụ: Quy trình bảo hành pin xe VF5)"
-            disabled={loading}
-            style={{
-              flex: 1,
-              background: 'rgba(15, 23, 42, 0.6)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '10px',
-              padding: '12px 16px',
-              color: '#e2e8f0',
-              fontSize: '0.9rem',
-              outline: 'none',
-              transition: 'all 0.2s',
-            }}
-            onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-            onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'}
-          />
-          <button
-            type="submit"
-            disabled={loading || !question.trim()}
-            style={{
-              background: loading || !question.trim() ? 'rgba(79, 70, 229, 0.5)' : '#4f46e5',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '10px',
-              padding: '0 20px',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              cursor: loading || !question.trim() ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s',
-              boxShadow: loading || !question.trim() ? 'none' : '0 4px 12px rgba(79, 70, 229, 0.3)'
-            }}
-          >
-            Gửi
-          </button>
-        </form>
+        {/* Input Bar Section */}
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: 'linear-gradient(to top, #212121 70%, transparent 100%)',
+          padding: '24px 0',
+          zIndex: 10
+        }}>
+          <form onSubmit={handleSubmit} className="chatgpt-input-container">
+            {/* Direct Upload button styled into input bar */}
+            <button 
+              type="button" 
+              className="chatgpt-btn-icon"
+              title="Tải tài liệu trực tiếp"
+              onClick={() => navigate('/')}
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+
+            <input 
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="Nhập câu hỏi của bạn tại đây... (Ví dụ: Bảo hành VF9)"
+              disabled={loading}
+              className="chatgpt-input"
+            />
+
+            <button 
+              type="submit" 
+              id="chatgpt-send-btn"
+              disabled={loading || !question.trim()}
+              className="chatgpt-btn-icon"
+              style={{
+                backgroundColor: loading || !question.trim() ? 'transparent' : '#10b981',
+                color: loading || !question.trim() ? '#4b4b4b' : '#fff'
+              }}
+            >
+              <ArrowUp className="w-4 h-4" />
+            </button>
+          </form>
+          
+          <div style={{ fontSize: '0.7rem', color: '#555', textAlign: 'center', marginTop: '8px' }}>
+            Hệ thống GraphRAG sử dụng lai ghép vectơ (Hybrid Search) kết hợp trích xuất thực thể đồ thị Neo4j.
+          </div>
+        </div>
+
       </div>
 
-      {/* Citations Drawer (Collapsible sidebar on the right) */}
+      {/* Citations Side Drawer (Collapsible right panel) */}
       {activeCitation && (
         <div className="glass-panel" style={{
           width: '320px',
-          padding: '20px',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
+          padding: '24px',
+          borderLeft: '1px solid rgba(255, 255, 255, 0.05)',
+          background: '#171717',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
-          maxHeight: 'calc(100vh - 120px)',
-          position: 'relative'
+          gap: '20px',
+          height: '100%',
+          position: 'relative',
+          animation: 'fadeIn 0.2s ease-out',
+          zIndex: 20
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#f1f5f9' }}>
-              Nguồn trích dẫn [{activeCitation.source_id}]
+            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>
+              Trích dẫn [{activeCitation.source_id}]
             </h4>
             <button
               onClick={() => setActiveCitation(null)}
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#64748b',
-                fontSize: '1.2rem',
+                color: '#8e8e8e',
+                fontSize: '1.1rem',
                 cursor: 'pointer',
-                padding: '0'
+                padding: '4px'
               }}
             >
               ✕
             </button>
           </div>
           
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '4px' }}>
             <div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '2px' }}>Tập tin nguồn</div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#e2e8f0' }}>{activeCitation.file_name}</div>
+              <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Tài liệu nguồn</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 500, color: '#cbd5e1' }}>{activeCitation.file_name}</div>
             </div>
 
             {activeCitation.page_number && (
               <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '2px' }}>Trang tài liệu</div>
-                <div style={{ fontSize: '0.85rem', color: '#e2e8f0' }}>Trang {activeCitation.page_number}</div>
+                <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Trang số</div>
+                <div style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>Trang {activeCitation.page_number}</div>
               </div>
             )}
 
             {activeCitation.heading && (
               <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '2px' }}>Mục tiêu đề</div>
-                <div style={{ fontSize: '0.85rem', color: '#e2e8f0', fontFamily: 'monospace' }}>{activeCitation.heading}</div>
+                <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Mục tiêu đề</div>
+                <div style={{ fontSize: '0.85rem', color: '#a5b4fc', fontFamily: 'monospace', background: 'rgba(99, 102, 241, 0.1)', padding: '4px 8px', borderRadius: '4px', display: 'inline-block' }}>{activeCitation.heading}</div>
               </div>
             )}
 
             {activeCitation.sheet_name && (
               <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '2px' }}>Vị trí bảng tính</div>
-                <div style={{ fontSize: '0.85rem', color: '#e2e8f0' }}>
-                  Sheet: {activeCitation.sheet_name} (Dòng {activeCitation.row_start} - {activeCitation.row_end})
+                <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Bảng tính Excel</div>
+                <div style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>
+                  Sheet: <strong>{activeCitation.sheet_name}</strong> (Dòng {activeCitation.row_start} - {activeCitation.row_end})
                 </div>
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Đoạn văn trích dẫn gốc</div>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '150px' }}>
+              <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Nội dung đoạn trích</div>
               <div style={{
                 flex: 1,
-                fontSize: '0.8rem',
-                lineHeight: '1.5',
-                color: '#cbd5e1',
-                background: 'rgba(0, 0, 0, 0.2)',
-                padding: '12px',
-                borderRadius: '8px',
+                fontSize: '0.825rem',
+                lineHeight: '1.6',
+                color: '#94a3b8',
+                background: 'rgba(0, 0, 0, 0.3)',
+                padding: '16px',
+                borderRadius: '12px',
                 border: '1px solid rgba(255, 255, 255, 0.03)',
                 whiteSpace: 'pre-wrap',
                 overflowY: 'auto'
@@ -452,13 +426,6 @@ function ChatPage() {
         </div>
       )}
       
-      {/* Keyframe animation for spinner */}
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

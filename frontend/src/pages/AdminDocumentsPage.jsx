@@ -57,18 +57,18 @@ export default function AdminDocumentsPage() {
     if (!file) return;
 
     // Validate size and format
-    const extension = file.name.split('.').pop().toLowerCase();
-    if (!['pdf', 'docx', 'xlsx'].includes(extension)) {
-      setUploadError("Only PDF, DOCX, and XLSX file formats are supported.");
+    const allowedExtensions = ['pdf', 'docx', 'xlsx'];
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    if (!allowedExtensions.includes(fileExtension)) {
+      setUploadError("Chỉ chấp nhận các tệp định dạng PDF, DOCX, hoặc XLSX.");
       return;
     }
 
+    const formData = new FormData();
+    formData.append('file', file);
     setUploading(true);
     setUploadError(null);
     setUploadSuccess(false);
-
-    const formData = new FormData();
-    formData.append('file', file);
 
     try {
       await axios.post(`${API_BASE_URL}/documents/upload`, formData, {
@@ -79,14 +79,10 @@ export default function AdminDocumentsPage() {
       fetchDocuments();
     } catch (err) {
       console.error("Upload error:", err);
-      setUploadError(err.response?.data?.detail || "Upload failed. Please check backend connection.");
+      setUploadError(err.response?.data?.detail || "Tải lên thất bại. Vui lòng kiểm tra lại kết nối backend.");
     } finally {
       setUploading(false);
     }
-  };
-
-  const triggerDeleteConfirm = (id, fileName) => {
-    setDocumentToDelete({ id, fileName });
   };
 
   const executeDeleteDocument = async () => {
@@ -98,7 +94,7 @@ export default function AdminDocumentsPage() {
       fetchDocuments();
     } catch (err) {
       console.error("Delete error:", err);
-      alert(err.response?.data?.detail || "Failed to delete the document.");
+      alert(err.response?.data?.detail || "Không thể xóa tài liệu.");
     } finally {
       setDeleting(false);
     }
@@ -117,7 +113,7 @@ export default function AdminDocumentsPage() {
       fetchDocuments();
     } catch (err) {
       console.error("Reprocess error:", err);
-      alert(err.response?.data?.detail || "Failed to trigger reprocessing.");
+      alert(err.response?.data?.detail || "Không thể yêu cầu xử lý lại.");
     } finally {
       setReprocessing(false);
     }
@@ -149,186 +145,205 @@ export default function AdminDocumentsPage() {
     }
   };
 
+  // Quick statistics calculation
+  const totalDocs = documents.length;
+  const readyDocs = documents.filter(d => d.status === 'READY').length;
+  const failedDocs = documents.filter(d => d.status === 'FAILED').length;
+  const processingDocs = documents.filter(d => d.status === 'PROCESSING' || d.status === 'PENDING').length;
+
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
+    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '32px' }} className="fade-in">
       
-      {/* Top Title Section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      {/* Top Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 className="gradient-text" style={{ fontSize: '2.5rem', fontWeight: 700, margin: 0, letterSpacing: '-0.03em' }}>
-            Knowledge Ingestion Dashboard
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 700, margin: 0, color: '#f9f9f9', letterSpacing: '-0.02em' }}>
+            Quản lý tài liệu tri thức
           </h1>
-          <p style={{ color: '#94a3b8', margin: '8px 0 0 0', fontSize: '1rem' }}>
-            Upload and process PDF, Word, and Excel files into chunks for GraphRAG MVP.
+          <p style={{ color: '#8e8e8e', margin: '6px 0 0 0', fontSize: '0.9rem' }}>
+            Tải lên và xử lý tệp PDF, Word, Excel để nạp vào cơ sở tri thức GraphRAG.
           </p>
         </div>
         
         <button 
           onClick={() => fetchDocuments(true)} 
-          className="btn-secondary" 
-          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          className="chatgpt-btn-icon"
+          style={{ padding: '10px', backgroundColor: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)' }}
+          title="Tải lại danh sách"
           disabled={refreshing}
         >
           <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing...' : 'Refresh List'}
         </button>
       </div>
 
-      {/* Grid: Ingestion Upload Panel & Quick Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: '24px', marginBottom: '40px' }}>
+      {/* Main Grid Split: Upload Box (Left) & Stats Widgets (Right) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: '24px' }}>
         
-        {/* Drag & Drop Upload Glass Panel */}
-        <div className="glass-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', minHeight: '220px' }}>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileUpload} 
-            style={{ display: 'none' }} 
-            accept=".pdf,.docx,.xlsx"
-          />
+        {/* Upload File Box */}
+        <div className="glass-panel" style={{ padding: '24px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>
+            Tải tài liệu mới lên
+          </h3>
+          
           <div 
-            style={{ cursor: 'pointer' }}
             onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (e.dataTransfer.files?.length) {
-                handleFileUpload({ target: { files: e.dataTransfer.files } });
+            style={{
+              border: '2px dashed rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '40px 20px',
+              textAlign: 'center',
+              cursor: uploading ? 'not-allowed' : 'pointer',
+              backgroundColor: 'rgba(0, 0, 0, 0.1)',
+              transition: 'all 0.2s ease-in-out'
+            }}
+            onMouseEnter={(e) => {
+              if (!uploading) {
+                e.currentTarget.style.borderColor = '#10b981';
+                e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.02)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!uploading) {
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
               }
             }}
           >
-            <div style={{ 
-              background: 'rgba(99, 102, 241, 0.1)', 
-              borderRadius: '50%', 
-              padding: '16px', 
-              display: 'inline-flex', 
-              marginBottom: '16px',
-              border: '1px solid rgba(99, 102, 241, 0.2)'
-            }}>
-              <UploadCloud className="w-10 h-10 text-indigo-400" />
-            </div>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileUpload} 
+              style={{ display: 'none' }}
+              accept=".pdf,.docx,.xlsx"
+              disabled={uploading}
+            />
             
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, margin: '0 0 8px 0' }}>
-              Drag & Drop file to upload
-            </h3>
-            <p style={{ color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 16px 0', maxWidth: '360px' }}>
-              Support format: <strong style={{ color: '#c084fc' }}>PDF</strong>, <strong style={{ color: '#c084fc' }}>DOCX</strong> or <strong style={{ color: '#c084fc' }}>XLSX</strong> (max 50MB)
-            </p>
-            <button className="btn-primary" disabled={uploading}>
-              {uploading ? 'Processing File...' : 'Select Document'}
-            </button>
+            {uploading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <RefreshCw className="w-10 h-10 text-emerald-400 animate-spin" />
+                <p style={{ color: '#cbd5e1', fontSize: '0.9rem', margin: 0 }}>Đang truyền tải và đăng ký tệp vào hệ thống...</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <UploadCloud className="w-10 h-10 text-emerald-400" />
+                <div>
+                  <p style={{ color: '#cbd5e1', fontSize: '0.95rem', fontWeight: 500, margin: '0 0 4px 0' }}>
+                    Nhấn vào đây để tải tệp lên
+                  </p>
+                  <p style={{ color: '#8e8e8e', fontSize: '0.75rem', margin: 0 }}>
+                    Hỗ trợ tệp PDF, DOCX (Word), XLSX (Excel)
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* Feedback messages */}
           {uploadError && (
-            <div style={{ marginTop: '16px', color: '#f87171', display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(239, 68, 68, 0.1)', padding: '8px 16px', borderRadius: '8px', fontSize: '0.875rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-              <AlertTriangle className="w-4 h-4" />
+            <div style={{ marginTop: '16px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', padding: '10px 14px', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span>{uploadError}</span>
             </div>
           )}
 
           {uploadSuccess && (
-            <div style={{ marginTop: '16px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(16, 185, 129, 0.1)', padding: '8px 16px', borderRadius: '8px', fontSize: '0.875rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-              <CheckCircle2 className="w-4 h-4" />
-              <span>File uploaded and queued for processing!</span>
+            <div style={{ marginTop: '16px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '10px 14px', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              <span>Đăng ký tệp thành công! Pipeline xử lý ngầm đã được kích hoạt.</span>
             </div>
           )}
         </div>
 
-        {/* Quick Stats Panel */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0 0 16px 0', borderBottom: '1px solid rgba(38, 53, 88, 0.5)', paddingBottom: '12px' }}>
-            Ingestion Stats
-          </h3>
+        {/* Quick statistics Widget Panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div style={{ background: 'rgba(31, 41, 55, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(38, 53, 88, 0.3)' }}>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Total Docs</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '4px', color: '#f1f5f9' }}>{documents.length}</div>
-            </div>
-            <div style={{ background: 'rgba(31, 41, 55, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(38, 53, 88, 0.3)' }}>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Total Chunks</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '4px', color: '#a855f7' }}>
-                {documents.reduce((acc, curr) => acc + (curr.chunks_count || 0), 0)}
-              </div>
-            </div>
-            <div style={{ background: 'rgba(31, 41, 55, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(38, 53, 88, 0.3)' }}>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Ready</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '4px', color: '#34d399' }}>
-                {documents.filter(d => d.status === 'READY').length}
-              </div>
-            </div>
-            <div style={{ background: 'rgba(31, 41, 55, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(38, 53, 88, 0.3)' }}>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Processing</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '4px', color: '#60a5fa' }}>
-                {documents.filter(d => d.status === 'PROCESSING' || d.status === 'PENDING').length}
-              </div>
-            </div>
+          <div className="glass-panel" style={{ padding: '16px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Tổng số tệp</span>
+            <strong style={{ fontSize: '1.25rem', color: '#f9f9f9' }}>{totalDocs}</strong>
           </div>
+
+          <div className="glass-panel" style={{ padding: '16px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Sẵn sàng (Ready)</span>
+            <strong style={{ fontSize: '1.25rem', color: '#10b981' }}>{readyDocs}</strong>
+          </div>
+
+          <div className="glass-panel" style={{ padding: '16px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Đang xử lý</span>
+            <strong style={{ fontSize: '1.25rem', color: '#3b82f6' }}>{processingDocs}</strong>
+          </div>
+
+          <div className="glass-panel" style={{ padding: '16px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Xử lý lỗi</span>
+            <strong style={{ fontSize: '1.25rem', color: '#ef4444' }}>{failedDocs}</strong>
+          </div>
+
         </div>
+
       </div>
 
-      {/* Documents Table List */}
-      <div className="glass-panel" style={{ overflow: 'hidden' }}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(38, 53, 88, 0.5)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <FileText className="w-5 h-5 text-indigo-400" />
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Document Repository</h2>
-        </div>
-
+      {/* Documents Table list */}
+      <div className="glass-panel" style={{ padding: '24px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>
+          Tài liệu trong hệ thống
+        </h3>
+        
         {documents.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8' }}>
-            <FileText className="w-12 h-12 text-slate-600" style={{ margin: '0 auto 16px auto' }} />
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0 0 8px 0', color: '#e2e8f0' }}>No documents uploaded yet</h3>
-            <p style={{ margin: 0, fontSize: '0.9rem' }}>Upload your first PDF, DOCX, or XLSX file above to begin chunk ingestion.</p>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: '#8e8e8e' }}>
+            <FileText className="w-12 h-12 text-slate-600" style={{ margin: '0 auto 12px auto' }} />
+            <p style={{ margin: 0, fontSize: '0.9rem' }}>Chưa có tài liệu nào trong cơ sở dữ liệu.</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(30, 41, 59, 0.3)', borderBottom: '1px solid rgba(38, 53, 88, 0.5)' }}>
-                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: 600 }}>File Name</th>
-                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: 600 }}>Type</th>
-                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: 600 }}>Routing</th>
-                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: 600 }}>Status</th>
-                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: 600 }}>Chunks</th>
-                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: 600 }}>Uploaded At</th>
-                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', color: '#8e8e8e' }}>
+                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Tên tài liệu</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Định dạng</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Routing</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Trạng thái</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Số Chunks</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'right' }}>Hành động</th>
                 </tr>
               </thead>
               <tbody>
                 {documents.map((doc) => (
                   <tr 
                     key={doc.id} 
-                    style={{ borderBottom: '1px solid rgba(38, 53, 88, 0.3)', transition: 'background 0.2s' }}
-                    className="table-row-hover"
+                    style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.02)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.01)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
-                    {/* File name & size */}
-                    <td style={{ padding: '16px 24px' }}>
+                    
+                    {/* File Name & UUID */}
+                    <td style={{ padding: '16px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 600, color: '#f1f5f9' }}>{doc.original_file_name}</span>
-                        <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{doc.id}</span>
+                        <span style={{ fontWeight: 500, color: '#e2e8f0', cursor: 'pointer' }} onClick={() => navigate(`/documents/${doc.id}`)}>
+                          {doc.original_file_name}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: '#666', marginTop: '2px' }}>{doc.id}</span>
                       </div>
                     </td>
-                    
-                    {/* File type */}
-                    <td style={{ padding: '16px 24px' }}>
+
+                    {/* Format type */}
+                    <td style={{ padding: '16px' }}>
                       <span style={{ 
                         textTransform: 'uppercase', 
-                        fontSize: '0.75rem', 
+                        fontSize: '0.7rem', 
                         fontWeight: 700, 
                         color: doc.file_type === 'pdf' ? '#f43f5e' : doc.file_type === 'docx' ? '#3b82f6' : '#10b981',
-                        background: 'rgba(31, 41, 55, 0.5)',
-                        padding: '2px 8px',
+                        backgroundColor: doc.file_type === 'pdf' ? 'rgba(244, 63, 94, 0.1)' : doc.file_type === 'docx' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                        padding: '2px 6px',
                         borderRadius: '4px'
                       }}>
                         {doc.file_type}
                       </span>
                     </td>
 
-                    {/* Routing result */}
-                    <td style={{ padding: '16px 24px' }}>
+                    {/* Routing State result */}
+                    <td style={{ padding: '16px' }}>
                       <span style={{ 
-                        fontSize: '0.8rem', 
-                        fontWeight: 600,
+                        fontWeight: 600, 
+                        fontSize: '0.75rem',
                         color: doc.routing_result === 'NEW' ? '#a855f7' : doc.routing_result === 'UPDATED' ? '#f59e0b' : '#94a3b8' 
                       }}>
                         {doc.routing_result || '-'}
@@ -336,86 +351,66 @@ export default function AdminDocumentsPage() {
                     </td>
 
                     {/* Status badge */}
-                    <td style={{ padding: '16px 24px' }}>
+                    <td style={{ padding: '16px' }}>
                       <span className={`badge ${getStatusBadgeClass(doc.status)}`}>
                         {getStatusIcon(doc.status)}
                         {doc.status}
                       </span>
                       {doc.error_message && (
-                        <div style={{ fontSize: '0.75rem', color: '#f87171', marginTop: '4px', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.error_message}>
+                        <div style={{ fontSize: '0.7rem', color: '#f87171', marginTop: '4px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.error_message}>
                           {doc.error_message}
                         </div>
                       )}
                     </td>
 
-                    {/* Number of chunks */}
-                    <td style={{ padding: '16px 24px', fontWeight: 600 }}>
+                    {/* Chunk counts */}
+                    <td style={{ padding: '16px', fontWeight: 600, color: '#e2e8f0' }}>
                       {doc.status === 'READY' ? doc.chunks_count : '-'}
                     </td>
 
-                    {/* Created at */}
-                    <td style={{ padding: '16px 24px', color: '#94a3b8' }}>
-                      {new Date(doc.created_at).toLocaleString()}
-                    </td>
-
-                    {/* Details & Delete action buttons */}
-                    <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                    {/* Action buttons */}
+                    <td style={{ padding: '16px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         <button 
                           onClick={() => navigate(`/documents/${doc.id}`)}
                           className="btn-secondary" 
-                          style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                         >
-                          Details
+                          Chi tiết
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
+                        
                         <button 
                           onClick={() => triggerReprocessConfirm(doc.id, doc.original_file_name)}
                           disabled={doc.status === 'PENDING' || doc.status === 'PROCESSING'}
                           className="btn-secondary" 
                           style={{ 
                             padding: '6px 12px', 
-                            fontSize: '0.8rem', 
+                            fontSize: '0.75rem', 
                             display: 'inline-flex', 
                             alignItems: 'center', 
                             gap: '4px',
                             background: doc.status === 'PENDING' || doc.status === 'PROCESSING' 
-                              ? 'rgba(99, 102, 241, 0.05)' 
+                              ? 'rgba(99, 102, 241, 0.03)' 
                               : 'rgba(99, 102, 241, 0.1)',
                             border: doc.status === 'PENDING' || doc.status === 'PROCESSING'
-                              ? '1px solid rgba(99, 102, 241, 0.05)'
+                              ? '1px solid rgba(99, 102, 241, 0.03)'
                               : '1px solid rgba(99, 102, 241, 0.2)',
-                            color: doc.status === 'PENDING' || doc.status === 'PROCESSING'
-                              ? '#4b5563'
-                              : '#818cf8',
+                            color: doc.status === 'PENDING' || doc.status === 'PROCESSING' ? '#555' : '#818cf8',
                             borderRadius: '8px',
-                            cursor: doc.status === 'PENDING' || doc.status === 'PROCESSING' ? 'not-allowed' : 'pointer',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            if (doc.status !== 'PENDING' && doc.status !== 'PROCESSING') {
-                              e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
-                              e.currentTarget.style.borderColor = '#6366f1';
-                              e.currentTarget.style.color = '#a5b4fc';
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (doc.status !== 'PENDING' && doc.status !== 'PROCESSING') {
-                              e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)';
-                              e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.2)';
-                              e.currentTarget.style.color = '#818cf8';
-                            }
+                            cursor: doc.status === 'PENDING' || doc.status === 'PROCESSING' ? 'not-allowed' : 'pointer'
                           }}
                         >
                           <RefreshCw className={`w-3.5 h-3.5 ${doc.status === 'PROCESSING' ? 'animate-spin' : ''}`} />
                           Reprocess
                         </button>
+
                         <button 
-                          onClick={() => triggerDeleteConfirm(doc.id, doc.original_file_name)}
+                          onClick={() => setDocumentToDelete({ id: doc.id, fileName: doc.original_file_name })}
                           className="btn-danger" 
                           style={{ 
                             padding: '6px 12px', 
-                            fontSize: '0.8rem', 
+                            fontSize: '0.75rem', 
                             display: 'inline-flex', 
                             alignItems: 'center', 
                             gap: '4px',
@@ -423,18 +418,7 @@ export default function AdminDocumentsPage() {
                             border: '1px solid rgba(239, 68, 68, 0.2)',
                             color: '#f87171',
                             borderRadius: '8px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
-                            e.currentTarget.style.borderColor = '#ef4444';
-                            e.currentTarget.style.color = '#ef4444';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
-                            e.currentTarget.style.color = '#f87171';
+                            cursor: 'pointer'
                           }}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -442,6 +426,7 @@ export default function AdminDocumentsPage() {
                         </button>
                       </div>
                     </td>
+
                   </tr>
                 ))}
               </tbody>
@@ -454,10 +439,7 @@ export default function AdminDocumentsPage() {
       {documentToDelete && (
         <div style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+          top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(15, 23, 42, 0.75)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
@@ -472,52 +454,40 @@ export default function AdminDocumentsPage() {
             padding: '32px',
             borderRadius: '20px',
             border: '1px solid rgba(239, 68, 68, 0.2)',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '20px'
+            gap: '20px',
+            background: '#171717'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
+                width: '48px', height: '48px', borderRadius: '12px',
                 background: 'rgba(239, 68, 68, 0.1)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: '#ef4444'
               }}>
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#ef4444' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#f87171' }}>
                   Xác nhận xóa tài liệu
                 </h3>
-                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Hành động này không thể hoàn tác</span>
+                <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Hành động này không thể hoàn tác</span>
               </div>
             </div>
 
-            <div style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', background: 'rgba(15, 23, 42, 0.3)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-              Bạn có chắc chắn muốn xóa tài liệu <strong style={{ color: '#6366f1' }}>"{documentToDelete.fileName}"</strong> không? 
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: '#94a3b8' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ color: '#ef4444' }}>•</span>
-                  <span>Xóa toàn bộ các chunks trong cơ sở dữ liệu PostgreSQL.</span>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ color: '#ef4444' }}>•</span>
-                  <span>Xóa và dọn dẹp các liên kết thực thể (Neo4j).</span>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ color: '#ef4444' }}>•</span>
-                  <span>Rebuild lại chỉ mục tìm kiếm BM25.</span>
-                </div>
+            <div style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', background: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+              Bạn có chắc chắn muốn xóa tài liệu <strong style={{ color: '#10b981' }}>"{documentToDelete.fileName}"</strong> không? 
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: '#8e8e8e' }}>
+                <div>• Xóa các chunks trong cơ sở dữ liệu PostgreSQL.</div>
+                <div>• Gỡ bỏ liên kết thực thể (Neo4j).</div>
+                <div>• Rebuild lại chỉ mục tìm kiếm BM25.</div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button 
                 onClick={() => setDocumentToDelete(null)}
                 disabled={deleting}
@@ -529,16 +499,17 @@ export default function AdminDocumentsPage() {
               <button 
                 onClick={executeDeleteDocument}
                 disabled={deleting}
-                className="btn-danger"
+                className="btn-primary"
                 style={{ 
                   padding: '10px 20px', 
                   borderRadius: '10px',
                   background: deleting ? 'rgba(239, 68, 68, 0.5)' : '#ef4444',
-                  borderColor: deleting ? 'transparent' : '#ef4444',
+                  border: 'none',
                   color: '#fff',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  boxShadow: 'none'
                 }}
               >
                 {deleting ? (
@@ -562,10 +533,7 @@ export default function AdminDocumentsPage() {
       {documentToReprocess && (
         <div style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+          top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(15, 23, 42, 0.75)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
@@ -580,52 +548,40 @@ export default function AdminDocumentsPage() {
             padding: '32px',
             borderRadius: '20px',
             border: '1px solid rgba(99, 102, 241, 0.2)',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '20px'
+            gap: '20px',
+            background: '#171717'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
+                width: '48px', height: '48px', borderRadius: '12px',
                 background: 'rgba(99, 102, 241, 0.1)',
                 border: '1px solid rgba(99, 102, 241, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: '#6366f1'
               }}>
                 <RefreshCw className="w-6 h-6" />
               </div>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#818cf8' }}>
-                  Xác nhận xử lý lại tài liệu
+                  Xử lý lại tài liệu
                 </h3>
-                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Tạo phiên bản mới cho tài liệu này</span>
+                <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Tạo phiên bản mới cho tài liệu này</span>
               </div>
             </div>
 
-            <div style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', background: 'rgba(15, 23, 42, 0.3)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-              Bạn có chắc chắn muốn xử lý lại tài liệu <strong style={{ color: '#a855f7' }}>"{documentToReprocess.fileName}"</strong> không? 
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: '#94a3b8' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ color: '#6366f1' }}>•</span>
-                  <span>Lấy lại file gốc đã lưu trữ và tạo một phiên bản (`DocumentVersion`) mới.</span>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ color: '#6366f1' }}>•</span>
-                  <span>Chạy lại pipeline: phân tích (parse), cắt nhỏ (chunking), tạo vector (embedding), và trích xuất thực thể đồ thị (graph extraction).</span>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ color: '#6366f1' }}>•</span>
-                  <span>Chỉ chuyển đổi sang phiên bản mới khi quá trình xử lý hoàn tất thành công.</span>
-                </div>
+            <div style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', background: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+              Bạn có chắc chắn muốn xử lý lại tài liệu <strong style={{ color: '#10b981' }}>"{documentToReprocess.fileName}"</strong> không? 
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: '#8e8e8e' }}>
+                <div>• Tạo phiên bản mới (`DocumentVersion`) chạy ngầm.</div>
+                <div>• Chạy lại toàn bộ pipeline trích xuất tri thức (RAG).</div>
+                <div>• Tự động kích hoạt khi thành công, giữ nguyên bản cũ nếu lỗi.</div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button 
                 onClick={() => setDocumentToReprocess(null)}
                 disabled={reprocessing}
@@ -642,17 +598,18 @@ export default function AdminDocumentsPage() {
                   padding: '10px 20px', 
                   borderRadius: '10px',
                   background: reprocessing ? 'rgba(99, 102, 241, 0.5)' : '#6366f1',
-                  borderColor: reprocessing ? 'transparent' : '#6366f1',
+                  border: 'none',
                   color: '#fff',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  boxShadow: 'none'
                 }}
               >
                 {reprocessing ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Đang khởi tạo...
+                    Đang xử lý...
                   </>
                 ) : (
                   <>
