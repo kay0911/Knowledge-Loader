@@ -14,6 +14,8 @@ export default function AdminDocumentsPage() {
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -77,17 +79,22 @@ export default function AdminDocumentsPage() {
     }
   };
 
-  const handleDeleteDocument = async (id, fileName) => {
-    if (!window.confirm(`Are you sure you want to delete "${fileName}"? This will delete all of its chunks, Neo4j graph data, and rebuild the search indexes.`)) {
-      return;
-    }
-    
+  const triggerDeleteConfirm = (id, fileName) => {
+    setDocumentToDelete({ id, fileName });
+  };
+
+  const executeDeleteDocument = async () => {
+    if (!documentToDelete) return;
+    setDeleting(true);
     try {
-      await axios.delete(`${API_BASE_URL}/documents/${id}`);
+      await axios.delete(`${API_BASE_URL}/documents/${documentToDelete.id}`);
+      setDocumentToDelete(null);
       fetchDocuments();
     } catch (err) {
       console.error("Delete error:", err);
       alert(err.response?.data?.detail || "Failed to delete the document.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -338,7 +345,7 @@ export default function AdminDocumentsPage() {
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                         <button 
-                          onClick={() => handleDeleteDocument(doc.id, doc.original_file_name)}
+                          onClick={() => triggerDeleteConfirm(doc.id, doc.original_file_name)}
                           className="btn-danger" 
                           style={{ 
                             padding: '6px 12px', 
@@ -376,6 +383,114 @@ export default function AdminDocumentsPage() {
           </div>
         )}
       </div>
+
+      {/* Custom Delete Confirmation Modal */}
+      {documentToDelete && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '500px',
+            padding: '32px',
+            borderRadius: '20px',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ef4444'
+              }}>
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#f87171' }}>
+                  Xác nhận xóa tài liệu
+                </h3>
+                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Hành động này không thể hoàn tác</span>
+              </div>
+            </div>
+
+            <div style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', background: 'rgba(15, 23, 42, 0.3)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              Bạn có chắc chắn muốn xóa tài liệu <strong style={{ color: '#6366f1' }}>"{documentToDelete.fileName}"</strong> không? 
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: '#94a3b8' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ color: '#ef4444' }}>•</span>
+                  <span>Xóa toàn bộ các chunks trong cơ sở dữ liệu PostgreSQL.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ color: '#ef4444' }}>•</span>
+                  <span>Xóa và dọn dẹp các liên kết thực thể (Neo4j).</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ color: '#ef4444' }}>•</span>
+                  <span>Rebuild lại chỉ mục tìm kiếm BM25.</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+              <button 
+                onClick={() => setDocumentToDelete(null)}
+                disabled={deleting}
+                className="btn-secondary"
+                style={{ padding: '10px 20px', borderRadius: '10px' }}
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={executeDeleteDocument}
+                disabled={deleting}
+                className="btn-danger"
+                style={{ 
+                  padding: '10px 20px', 
+                  borderRadius: '10px',
+                  background: deleting ? 'rgba(239, 68, 68, 0.5)' : '#ef4444',
+                  borderColor: deleting ? 'transparent' : '#ef4444',
+                  color: '#fff',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {deleting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Đang xóa...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Xác nhận xóa
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
