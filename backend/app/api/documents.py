@@ -78,3 +78,11 @@ def get_document_chunks(document_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Document not found")
     chunks = DocumentService.get_document_chunks(db, document_id)
     return chunks
+
+@router.delete("/{document_id}")
+def delete_document(document_id: str, db: Session = Depends(get_db)):
+    success = DocumentService.delete_document(db, document_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"message": "Document deleted successfully"}
+

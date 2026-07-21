@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+.eslintcache
+.stylelintcache
+*.log
+.DS_Store
+.git
+.github

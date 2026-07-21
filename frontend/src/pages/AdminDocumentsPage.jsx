@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   UploadCloud, FileText, RefreshCw, AlertTriangle, 
-  CheckCircle2, Clock, PlayCircle, Layers, HelpCircle, ArrowRight
+  CheckCircle2, Clock, PlayCircle, Layers, HelpCircle, ArrowRight, Trash2
 } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 export default function AdminDocumentsPage() {
   const [documents, setDocuments] = useState([]);
@@ -74,6 +74,20 @@ export default function AdminDocumentsPage() {
       setUploadError(err.response?.data?.detail || "Upload failed. Please check backend connection.");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDeleteDocument = async (id, fileName) => {
+    if (!window.confirm(`Are you sure you want to delete "${fileName}"? This will delete all of its chunks, Neo4j graph data, and rebuild the search indexes.`)) {
+      return;
+    }
+    
+    try {
+      await axios.delete(`${API_BASE_URL}/documents/${id}`);
+      fetchDocuments();
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert(err.response?.data?.detail || "Failed to delete the document.");
     }
   };
 
@@ -312,16 +326,48 @@ export default function AdminDocumentsPage() {
                       {new Date(doc.created_at).toLocaleString()}
                     </td>
 
-                    {/* Details action button */}
+                    {/* Details & Delete action buttons */}
                     <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                      <button 
-                        onClick={() => navigate(`/documents/${doc.id}`)}
-                        className="btn-secondary" 
-                        style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        Details
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button 
+                          onClick={() => navigate(`/documents/${doc.id}`)}
+                          className="btn-secondary" 
+                          style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          Details
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteDocument(doc.id, doc.original_file_name)}
+                          className="btn-danger" 
+                          style={{ 
+                            padding: '6px 12px', 
+                            fontSize: '0.8rem', 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                            color: '#f87171',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                            e.currentTarget.style.borderColor = '#ef4444';
+                            e.currentTarget.style.color = '#ef4444';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                            e.currentTarget.style.color = '#f87171';
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

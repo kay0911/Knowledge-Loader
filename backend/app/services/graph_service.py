@@ -198,3 +198,52 @@ class GraphService:
             DELETE e
             """
         )
+
+    @classmethod
+    def remove_old_versions_evidence(cls, document_id: str, active_version_id: str):
+        """
+        Delete all relationships (mentions, RELATED_TO) associated with old versions of a document,
+        keeping only the active version's relationships. Then clean up isolated entities.
+        """
+        logger.info(f"Removing old Neo4j graph evidence for document {document_id} keeping active version {active_version_id}...")
+        with neo4j_client.get_session() as session:
+            try:
+                session.execute_write(cls._remove_old_versions_evidence_tx, document_id, active_version_id)
+                logger.info(f"Successfully cleaned up old version evidence for document {document_id}.")
+            except Exception as e:
+                logger.error(f"Error removing old version evidence for document {document_id}: {str(e)}")
+                raise e
+
+    @staticmethod
+    def _remove_old_versions_evidence_tx(tx, document_id: str, active_version_id: str):
+        # 1. Delete RELATED_TO relationships where document_id matches and document_version_id is NOT active_version_id
+        tx.run(
+            """
+            MATCH ()-[r:RELATED_TO {document_id: $document_id}]->()
+            WHERE r.document_version_id <> $active_version_id
+            DELETE r
+            """,
+            document_id=document_id,
+            active_version_id=active_version_id
+        )
+
+        # 2. Delete MENTIONS relationships connected to Document node where document_version_id is NOT active_version_id
+        tx.run(
+            """
+            MATCH (d:Document {document_id: $document_id})-[r:MENTIONS]->()
+            WHERE r.document_version_id <> $active_version_id
+            DELETE r
+            """,
+            document_id=document_id,
+            active_version_id=active_version_id
+        )
+
+        # 3. Clean up isolated Entity nodes
+        tx.run(
+            """
+            MATCH (e:Entity)
+            WHERE NOT (e)-[:RELATED_TO]-() AND NOT ()-[:MENTIONS]->(e)
+            DELETE e
+            """
+        )
+

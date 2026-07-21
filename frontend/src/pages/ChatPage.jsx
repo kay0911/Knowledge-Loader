@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 function ChatPage() {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState([]);
@@ -21,7 +23,7 @@ function ChatPage() {
 
   const fetchHistory = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/chat/');
+      const response = await fetch(`${API_BASE_URL}/chat/`);
       if (response.ok) {
         const data = await response.json();
         setHistory(data);
@@ -44,7 +46,7 @@ function ChatPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/chat/', {
+      const response = await fetch(`${API_BASE_URL}/chat/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: userQuestion })

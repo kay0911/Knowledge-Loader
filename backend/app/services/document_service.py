@@ -135,3 +135,37 @@ class DocumentService:
             DocumentChunk.document_version_id == doc.active_version_id,
             DocumentChunk.is_active == True
         ).order_by(DocumentChunk.chunk_order).all()
+
+    @staticmethod
+    def delete_document(db: Session, document_id: str) -> bool:
+        doc = db.query(Document).filter(Document.id == document_id).first()
+        if not doc:
+            return False
+            
+        # 1. Update Document status to DELETED
+        doc.status = "DELETED"
+        doc.active_version_id = None
+        
+        # 2. Delete all related chunks, versions, and processing jobs in PostgreSQL
+        db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).delete()
+        db.query(DocumentVersion).filter(DocumentVersion.document_id == document_id).delete()
+        db.query(ProcessingJob).filter(ProcessingJob.document_id == document_id).delete()
+        
+        db.commit()
+        
+        # 3. Remove from Neo4j
+        try:
+            from app.services.graph_service import GraphService
+            GraphService.remove_document_evidence(document_id)
+        except Exception as neo_err:
+            logger.error(f"Failed to clear Neo4j evidence for deleted document {document_id}: {str(neo_err)}")
+            
+        # 4. Rebuild BM25 index
+        try:
+            from app.services.bm25_service import BM25Service
+            BM25Service.rebuild_index()
+        except Exception as bm_err:
+            logger.error(f"Failed to rebuild BM25 index after deleting document {document_id}: {str(bm_err)}")
+            
+        return True
+

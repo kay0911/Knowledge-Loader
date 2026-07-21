@@ -93,6 +93,12 @@ def process_job(db: Session, job: ProcessingJob):
             version.is_active = True
             version.status = "READY"
             
+            # Clean up old Neo4j graph version evidence
+            try:
+                GraphService.remove_old_versions_evidence(str(doc.id), str(version.id))
+            except Exception as graph_clean_err:
+                logger.error(f"Failed to clear old versions Neo4j evidence for document {doc.id}: {str(graph_clean_err)}")
+            
         if doc:
             doc.active_version_id = version.id
             doc.status = "READY"
