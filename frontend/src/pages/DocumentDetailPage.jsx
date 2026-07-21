@@ -65,10 +65,10 @@ export default function DocumentDetailPage() {
     if (!doc) return;
     const isProcessing = doc.status === 'PENDING' || doc.status === 'PROCESSING';
     if (isProcessing) {
-      const interval = setInterval(() => {
+      const timer = setTimeout(() => {
         fetchDetails(false);
       }, 3000);
-      return () => clearInterval(interval);
+      return () => clearTimeout(timer);
     }
   }, [doc]);
 

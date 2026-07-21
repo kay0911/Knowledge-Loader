@@ -34,18 +34,22 @@ export default function AdminDocumentsPage() {
     }
   };
 
-  // Poll for document status changes if any doc is in PENDING or PROCESSING state
+  // Initial fetch on component mount
   useEffect(() => {
     fetchDocuments();
-    const interval = setInterval(() => {
-      const hasProcessing = documents.some(
-        doc => doc.status === 'PENDING' || doc.status === 'PROCESSING'
-      );
-      if (hasProcessing || documents.length === 0) {
+  }, []);
+
+  // Poll only when there are processing documents
+  useEffect(() => {
+    const hasProcessing = documents.some(
+      doc => doc.status === 'PENDING' || doc.status === 'PROCESSING'
+    );
+    if (hasProcessing) {
+      const timer = setTimeout(() => {
         fetchDocuments();
-      }
-    }, 3000);
-    return () => clearInterval(interval);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
   }, [documents]);
 
   const handleFileUpload = async (e) => {
