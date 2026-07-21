@@ -16,8 +16,18 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [chatHistory, setChatHistory] = useState([]);
   const [historyLimit, setHistoryLimit] = useState(10);
+  const [activeLogId, setActiveLogId] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Track the currently active log ID from the search query params
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const logId = params.get('log_id');
+    if (logId) {
+      setActiveLogId(logId);
+    }
+  }, [location]);
 
   const fetchChatHistory = async () => {
     try {
@@ -35,6 +45,7 @@ function AppContent() {
   }, []);
 
   const handleNewChat = () => {
+    setActiveLogId(null);
     navigate('/chat');
     // Dispatch a custom event to tell ChatPage to clear state if it's already on /chat
     window.dispatchEvent(new Event('new-chat-triggered'));
@@ -105,8 +116,8 @@ function AppContent() {
           {/* Navigation Links */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '24px' }}>
             <NavLink 
-              to="/chat" 
-              className={({ isActive }) => `chatgpt-sidebar-item ${isActive && !location.search ? 'active' : ''}`}
+              to={activeLogId ? `/chat?log_id=${activeLogId}` : "/chat"} 
+              className={({ isActive }) => `chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
               style={{ textDecoration: 'none' }}
             >
               <MessageSquare className="w-4 h-4" />
@@ -154,7 +165,8 @@ function AppContent() {
                         textOverflow: 'ellipsis',
                         fontSize: '0.85rem',
                         display: 'block',
-                        padding: '10px 12px'
+                        padding: '10px 12px',
+                        flexShrink: 0
                       }}
                       title={chat.question}
                     >
@@ -239,30 +251,6 @@ function AppContent() {
 
       {/* Main Content Area */}
       <main className="chatgpt-main" style={{ flex: 1, paddingLeft: !sidebarOpen ? '12px' : '0px' }}>
-        
-        {/* Toggle Pill Tab Switcher in Main Panel (Top) */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          padding: '14px 24px', 
-          borderBottom: '1px solid rgba(255, 255, 255, 0.03)' 
-        }}>
-          <div className="toggle-pill-container">
-            <button 
-              className={`toggle-pill-btn ${location.pathname.startsWith('/chat') ? 'active' : ''}`}
-              onClick={() => navigate('/chat')}
-            >
-              Chat
-            </button>
-            <button 
-              className={`toggle-pill-btn ${location.pathname === '/' ? 'active' : ''}`}
-              onClick={() => navigate('/')}
-            >
-              Work (Documents)
-            </button>
-          </div>
-        </div>
 
         {/* Dynamic Route views */}
         <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
