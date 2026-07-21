@@ -16,6 +16,8 @@ export default function AdminDocumentsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [documentToReprocess, setDocumentToReprocess] = useState(null);
+  const [reprocessing, setReprocessing] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -95,6 +97,25 @@ export default function AdminDocumentsPage() {
       alert(err.response?.data?.detail || "Failed to delete the document.");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const triggerReprocessConfirm = (id, fileName) => {
+    setDocumentToReprocess({ id, fileName });
+  };
+
+  const executeReprocessDocument = async () => {
+    if (!documentToReprocess) return;
+    setReprocessing(true);
+    try {
+      await axios.post(`${API_BASE_URL}/documents/${documentToReprocess.id}/reprocess`);
+      setDocumentToReprocess(null);
+      fetchDocuments();
+    } catch (err) {
+      console.error("Reprocess error:", err);
+      alert(err.response?.data?.detail || "Failed to trigger reprocessing.");
+    } finally {
+      setReprocessing(false);
     }
   };
 
@@ -345,6 +366,47 @@ export default function AdminDocumentsPage() {
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                         <button 
+                          onClick={() => triggerReprocessConfirm(doc.id, doc.original_file_name)}
+                          disabled={doc.status === 'PENDING' || doc.status === 'PROCESSING'}
+                          className="btn-secondary" 
+                          style={{ 
+                            padding: '6px 12px', 
+                            fontSize: '0.8rem', 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            background: doc.status === 'PENDING' || doc.status === 'PROCESSING' 
+                              ? 'rgba(99, 102, 241, 0.05)' 
+                              : 'rgba(99, 102, 241, 0.1)',
+                            border: doc.status === 'PENDING' || doc.status === 'PROCESSING'
+                              ? '1px solid rgba(99, 102, 241, 0.05)'
+                              : '1px solid rgba(99, 102, 241, 0.2)',
+                            color: doc.status === 'PENDING' || doc.status === 'PROCESSING'
+                              ? '#4b5563'
+                              : '#818cf8',
+                            borderRadius: '8px',
+                            cursor: doc.status === 'PENDING' || doc.status === 'PROCESSING' ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (doc.status !== 'PENDING' && doc.status !== 'PROCESSING') {
+                              e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
+                              e.currentTarget.style.borderColor = '#6366f1';
+                              e.currentTarget.style.color = '#a5b4fc';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (doc.status !== 'PENDING' && doc.status !== 'PROCESSING') {
+                              e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)';
+                              e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.2)';
+                              e.currentTarget.style.color = '#818cf8';
+                            }
+                          }}
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${doc.status === 'PROCESSING' ? 'animate-spin' : ''}`} />
+                          Reprocess
+                        </button>
+                        <button 
                           onClick={() => triggerDeleteConfirm(doc.id, doc.original_file_name)}
                           className="btn-danger" 
                           style={{ 
@@ -426,7 +488,7 @@ export default function AdminDocumentsPage() {
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#f87171' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#ef4444' }}>
                   Xác nhận xóa tài liệu
                 </h3>
                 <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Hành động này không thể hoàn tác</span>
@@ -484,6 +546,114 @@ export default function AdminDocumentsPage() {
                   <>
                     <Trash2 className="w-4 h-4" />
                     Xác nhận xóa
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Reprocess Confirmation Modal */}
+      {documentToReprocess && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '500px',
+            padding: '32px',
+            borderRadius: '20px',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                background: 'rgba(99, 102, 241, 0.1)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#6366f1'
+              }}>
+                <RefreshCw className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#818cf8' }}>
+                  Xác nhận xử lý lại tài liệu
+                </h3>
+                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Tạo phiên bản mới cho tài liệu này</span>
+              </div>
+            </div>
+
+            <div style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', background: 'rgba(15, 23, 42, 0.3)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              Bạn có chắc chắn muốn xử lý lại tài liệu <strong style={{ color: '#a855f7' }}>"{documentToReprocess.fileName}"</strong> không? 
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: '#94a3b8' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ color: '#6366f1' }}>•</span>
+                  <span>Lấy lại file gốc đã lưu trữ và tạo một phiên bản (`DocumentVersion`) mới.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ color: '#6366f1' }}>•</span>
+                  <span>Chạy lại pipeline: phân tích (parse), cắt nhỏ (chunking), tạo vector (embedding), và trích xuất thực thể đồ thị (graph extraction).</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ color: '#6366f1' }}>•</span>
+                  <span>Chỉ chuyển đổi sang phiên bản mới khi quá trình xử lý hoàn tất thành công.</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+              <button 
+                onClick={() => setDocumentToReprocess(null)}
+                disabled={reprocessing}
+                className="btn-secondary"
+                style={{ padding: '10px 20px', borderRadius: '10px' }}
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={executeReprocessDocument}
+                disabled={reprocessing}
+                className="btn-primary"
+                style={{ 
+                  padding: '10px 20px', 
+                  borderRadius: '10px',
+                  background: reprocessing ? 'rgba(99, 102, 241, 0.5)' : '#6366f1',
+                  borderColor: reprocessing ? 'transparent' : '#6366f1',
+                  color: '#fff',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {reprocessing ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Đang khởi tạo...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Bắt đầu xử lý
                   </>
                 )}
               </button>

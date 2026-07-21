@@ -86,3 +86,15 @@ def delete_document(document_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Document not found")
     return {"message": "Document deleted successfully"}
 
+@router.post("/{document_id}/reprocess", response_model=DocumentResponse)
+def reprocess_document(document_id: str, db: Session = Depends(get_db)):
+    try:
+        doc = DocumentService.reprocess_document(db, document_id)
+        return doc
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as e:
+        logger.error(f"Failed to reprocess document {document_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to reprocess document: {str(e)}")
+
+

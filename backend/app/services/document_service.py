@@ -169,3 +169,63 @@ class DocumentService:
             
         return True
 
+    @staticmethod
+    def reprocess_document(db: Session, document_id: str) -> Document:
+        doc = db.query(Document).filter(Document.id == document_id, Document.status != "DELETED").first()
+        if not doc:
+            raise ValueError("Document not found or has been deleted.")
+            
+        # Resolve file path dynamically to support old Windows paths inside Linux container
+        filename = os.path.basename(doc.file_path.replace("\\", "/"))
+        resolved_path = os.path.join(settings.UPLOAD_DIR, filename)
+        
+        if not os.path.exists(resolved_path):
+            if os.path.exists(doc.file_path):
+                resolved_path = doc.file_path
+            else:
+                raise ValueError(f"Original source file not found at {resolved_path}")
+            
+        with open(resolved_path, "rb") as f:
+            file_content = f.read()
+            
+        # Update path to resolved container path
+        doc.file_path = resolved_path
+        file_hash = doc.file_hash
+        
+        # Mark document status as PENDING
+        doc.status = "PENDING"
+        doc.routing_result = "REPROCESS"
+        
+        # Find last version number
+        last_version = db.query(DocumentVersion).filter(
+            DocumentVersion.document_id == doc.id
+        ).order_by(DocumentVersion.version_number.desc()).first()
+        new_version_num = (last_version.version_number + 1) if last_version else 1
+        
+        version = DocumentVersion(
+            document_id=doc.id,
+            version_number=new_version_num,
+            file_hash=file_hash,
+            parser_version="v1",
+            chunking_version="v1",
+            is_active=False,
+            status="PENDING"
+        )
+        db.add(version)
+        db.flush()
+        
+        # Create processing job
+        job = ProcessingJob(
+            document_id=doc.id,
+            document_version_id=version.id,
+            job_type="REPROCESS",
+            status="PENDING"
+        )
+        db.add(job)
+        
+        db.commit()
+        db.refresh(doc)
+        logger.info(f"Triggered reprocessing for document {doc.original_file_name}. New version: v{new_version_num}. Created job ID: {job.id}")
+        return doc
+
+
