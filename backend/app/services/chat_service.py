@@ -38,7 +38,49 @@ class ChatService:
             cls._configured = True
 
     @classmethod
-    def ask(cls, db: Session, question: str, session_id: str = None) -> Tuple[ChatLog, List[Dict[str, Any]]]:
+    def _prepare_history_and_query(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False):
+        history_str = ""
+        rewritten_question = question
+        
+        if history_mode and session_id:
+            # Query last 5 Q&A pairs (turns)
+            history_logs = db.query(ChatLog).filter(
+                ChatLog.session_id == session_id
+            ).order_by(ChatLog.created_at.desc()).limit(5).all()
+            
+            # Reverse to chronological order
+            history_logs.reverse()
+            
+            if history_logs:
+                # Format history
+                history_str_list = []
+                for log in history_logs:
+                    ans = log.answer or ""
+                    history_str_list.append(f"User: {log.question}\nAssistant: {ans}")
+                history_str = "\n\n".join(history_str_list)
+                
+                # Rewrite question using LLM to make it a standalone search query
+                rewrite_prompt = (
+                    "Bạn là trợ lý ảo phụ trách viết lại câu hỏi tìm kiếm. "
+                    "Dựa trên lịch sử hội thoại dưới đây và câu hỏi tiếp theo, hãy viết lại câu hỏi tiếp theo thành một câu hỏi độc lập, đầy đủ ngữ nghĩa để tìm kiếm trong cơ sở dữ liệu. "
+                    "Chỉ trả về câu hỏi độc lập mới, KHÔNG trả lời câu hỏi và KHÔNG thêm bất kỳ giải thích nào khác.\n\n"
+                    f"Lịch sử hội thoại:\n{history_str}\n\n"
+                    f"Câu hỏi tiếp theo: {question}\n\n"
+                    "Câu hỏi độc lập viết lại:"
+                )
+                try:
+                    model = genai.GenerativeModel(model_name=settings.GEMINI_LLM_MODEL)
+                    response = model.generate_content(rewrite_prompt)
+                    rewritten_question = response.text.strip()
+                    logger.info(f"Original question: '{question}' -> Rewritten for search: '{rewritten_question}'")
+                except Exception as ex:
+                    logger.error(f"Failed to rewrite question using history: {str(ex)}")
+                    rewritten_question = question
+                    
+        return history_str, rewritten_question
+
+    @classmethod
+    def ask(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False) -> Tuple[ChatLog, List[Dict[str, Any]]]:
         """
         Run the Q&A pipeline:
         1. Run hybrid retrieval to get top relevant context chunks.
@@ -50,8 +92,11 @@ class ChatService:
         cls._configure()
         start_time = time.time()
         
-        # 1. Retrieve hybrid chunks
-        chunks, graph_relationships = RetrievalService.retrieve_hybrid(db, question)
+        # 1. Prepare history and query rewrite
+        history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
+        
+        # 2. Retrieve hybrid chunks using rewritten question
+        chunks, graph_relationships = RetrievalService.retrieve_hybrid(db, query_for_retrieval)
         
         # 2. Format Context
         context_blocks = []
@@ -74,7 +119,11 @@ class ChatService:
         answer = ""
         try:
             model = genai.GenerativeModel(model_name=settings.GEMINI_LLM_MODEL)
-            prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question)
+            if history_str:
+                question_with_history = f"(Lịch sử hội thoại để tham khảo:\n{history_str})\n\nCâu hỏi hiện tại cần trả lời: {question}"
+            else:
+                question_with_history = question
+            prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question_with_history)
             
             logger.info("Calling Gemini LLM for Q&A...")
             response = model.generate_content(prompt)
@@ -154,7 +203,7 @@ class ChatService:
         return chat_log, citations
 
     @classmethod
-    def ask_stream(cls, db: Session, question: str, session_id: str = None):
+    def ask_stream(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False):
         """
         Streaming version of ask:
         Yields content chunks in SSE format first, then yields metadata at the end.
@@ -162,8 +211,11 @@ class ChatService:
         cls._configure()
         start_time = time.time()
         
-        # 1. Retrieve hybrid chunks
-        chunks, graph_relationships = RetrievalService.retrieve_hybrid(db, question)
+        # 1. Prepare history and query rewrite
+        history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
+        
+        # 2. Retrieve hybrid chunks using rewritten question
+        chunks, graph_relationships = RetrievalService.retrieve_hybrid(db, query_for_retrieval)
         
         # 2. Format Context
         context_blocks = []
@@ -186,7 +238,11 @@ class ChatService:
         answer = ""
         try:
             model = genai.GenerativeModel(model_name=settings.GEMINI_LLM_MODEL)
-            prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question)
+            if history_str:
+                question_with_history = f"(Lịch sử hội thoại để tham khảo:\n{history_str})\n\nCâu hỏi hiện tại cần trả lời: {question}"
+            else:
+                question_with_history = question
+            prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question_with_history)
             
             logger.info("Calling Gemini LLM for streaming Q&A...")
             response = model.generate_content(prompt, stream=True)

@@ -20,6 +20,7 @@ class CitationResponse(BaseModel):
 class ChatRequest(BaseModel):
     question: str
     session_id: Optional[UUID] = None
+    history_mode: Optional[bool] = False
 
 
 class ChatResponse(BaseModel):

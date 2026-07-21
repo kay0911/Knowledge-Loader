@@ -32,7 +32,9 @@ def ask_question(payload: ChatRequest, db: Session = Depends(get_db)):
         )
         
     session_id_str = str(payload.session_id) if payload.session_id else None
-    chat_log, citations = ChatService.ask(db, payload.question, session_id=session_id_str)
+    chat_log, citations = ChatService.ask(
+        db, payload.question, session_id=session_id_str, history_mode=payload.history_mode
+    )
     return ChatResponse(
         chat_id=chat_log.id,
         session_id=chat_log.session_id,
@@ -116,7 +118,7 @@ def ask_question_stream(payload: ChatRequest, db: Session = Depends(get_db)):
     
     session_id_str = str(payload.session_id) if payload.session_id else None
     return StreamingResponse(
-        ChatService.ask_stream(db, payload.question, session_id=session_id_str),
+        ChatService.ask_stream(db, payload.question, session_id=session_id_str, history_mode=payload.history_mode),
         media_type="text/event-stream"
     )
 

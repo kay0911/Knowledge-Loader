@@ -17,6 +17,7 @@ function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [activeCitation, setActiveCitation] = useState(null);
   const [currentSessionId, setCurrentSessionId] = useState(sessionIdParam || null);
+  const [historyMode, setHistoryMode] = useState(false);
   
   const messagesEndRef = useRef(null);
 
@@ -80,7 +81,7 @@ function ChatPage() {
     setLoading(true);
 
     try {
-      const payload = { question: userQuestion };
+      const payload = { question: userQuestion, history_mode: historyMode };
       // If we're in an existing session, include the session_id
       if (currentSessionId) {
         payload.session_id = currentSessionId;
@@ -362,6 +363,50 @@ function ChatPage() {
           padding: '24px 0',
           zIndex: 10
         }}>
+          {/* History Mode Toggle Switch */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '10px'
+          }}>
+            <span style={{ fontSize: '0.8rem', color: historyMode ? '#10b981' : '#8e8e8e', fontWeight: 500, transition: 'color 0.2s' }}>
+              Chế độ Lịch sử (History Mode)
+            </span>
+            <label className="chatgpt-switch" style={{ position: 'relative', display: 'inline-block', width: '34px', height: '20px' }}>
+              <input 
+                type="checkbox" 
+                checked={historyMode} 
+                onChange={(e) => setHistoryMode(e.target.checked)}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span style={{
+                position: 'absolute',
+                cursor: 'pointer',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: historyMode ? '#10b981' : '#3e3e3e',
+                transition: '0.3s',
+                borderRadius: '20px'
+              }}>
+                <span style={{
+                  position: 'absolute',
+                  content: '""',
+                  height: '14px',
+                  width: '14px',
+                  left: historyMode ? '17px' : '3px',
+                  bottom: '3px',
+                  backgroundColor: 'white',
+                  transition: '0.3s',
+                  borderRadius: '50%'
+                }} />
+              </span>
+            </label>
+          </div>
+
           <form onSubmit={handleSubmit} className="chatgpt-input-container">
             {/* Direct Upload button styled into input bar */}
             <button 
