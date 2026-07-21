@@ -36,12 +36,12 @@ function AppContent() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Track the currently active log ID from the search query params
+  // Track the currently active session ID from the search query params
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const logId = params.get('log_id');
-    if (logId) {
-      setActiveLogId(logId);
+    const sessionId = params.get('session_id');
+    if (sessionId) {
+      setActiveLogId(sessionId);
     }
   }, [location]);
 
@@ -138,7 +138,7 @@ function AppContent() {
           {/* Navigation Links */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '24px' }}>
             <NavLink 
-              to={activeLogId ? `/chat?log_id=${activeLogId}` : "/chat"} 
+              to={activeLogId ? `/chat?session_id=${activeLogId}` : "/chat"} 
               className={({ isActive }) => `chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
               style={{ textDecoration: 'none' }}
               onClick={() => { if (isMobile) setSidebarOpen(false); }}
@@ -177,12 +177,12 @@ function AppContent() {
             ) : (
               <>
                 {chatHistory.slice(0, historyLimit).map((chat) => {
-                  const isActive = location.search.includes(`log_id=${chat.id}`);
+                  const isActive = location.search.includes(`session_id=${chat.session_id}`);
                   return (
                     <div 
                       key={chat.id} 
                       onClick={() => {
-                        navigate(`/chat?log_id=${chat.id}`);
+                        navigate(`/chat?session_id=${chat.session_id}`);
                         if (isMobile) setSidebarOpen(false);
                       }}
                       className={`chatgpt-sidebar-item ${isActive ? 'active' : ''}`}

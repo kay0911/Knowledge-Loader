@@ -26,6 +26,10 @@ try:
             ON document_chunks
             USING hnsw (embedding vector_cosine_ops);
         """))
+        # Add session_id column to chat_logs if it doesn't exist, and fill null values
+        logger.info("Running database migrations for ChatLog session_id...")
+        conn.execute(text("ALTER TABLE chat_logs ADD COLUMN IF NOT EXISTS session_id UUID;"))
+        conn.execute(text("UPDATE chat_logs SET session_id = id WHERE session_id IS NULL;"))
     logger.info("Migrations completed successfully.")
 except Exception as migration_err:
     logger.error(f"Migration failed: {str(migration_err)}")

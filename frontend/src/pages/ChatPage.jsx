@@ -10,38 +10,45 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const logId = searchParams.get('log_id');
+  const sessionIdParam = searchParams.get('session_id');
 
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeCitation, setActiveCitation] = useState(null);
+  const [currentSessionId, setCurrentSessionId] = useState(sessionIdParam || null);
   
   const messagesEndRef = useRef(null);
 
-  // Load chat session if logId changes
+  // Load all messages of a session when session_id param changes
   useEffect(() => {
-    if (logId) {
-      const loadLog = async () => {
+    if (sessionIdParam) {
+      setCurrentSessionId(sessionIdParam);
+      const loadSession = async () => {
         setLoading(true);
         try {
-          const res = await axios.get(`${API_BASE_URL}/chat/${logId}`);
-          setMessages([
-            { sender: 'user', text: res.data.question },
-            { sender: 'ai', text: res.data.answer, citations: res.data.citations || [] }
-          ]);
+          const res = await axios.get(`${API_BASE_URL}/chat/session/${sessionIdParam}`);
+          const msgs = [];
+          for (const log of res.data) {
+            msgs.push({ sender: 'user', text: log.question });
+            if (log.answer) {
+              msgs.push({ sender: 'ai', text: log.answer, citations: log.citations || [] });
+            }
+          }
+          setMessages(msgs);
         } catch (err) {
-          console.error("Error loading chat detail:", err);
+          console.error("Error loading chat session:", err);
         } finally {
           setLoading(false);
         }
       };
-      loadLog();
+      loadSession();
     } else {
       setMessages([]);
+      setCurrentSessionId(null);
     }
     setActiveCitation(null);
-  }, [logId]);
+  }, [sessionIdParam]);
 
   // Listen to the custom event for "New Chat"
   useEffect(() => {
@@ -49,6 +56,7 @@ function ChatPage() {
       setSearchParams({});
       setMessages([]);
       setActiveCitation(null);
+      setCurrentSessionId(null);
     };
     window.addEventListener('new-chat-triggered', handleNewChat);
     return () => window.removeEventListener('new-chat-triggered', handleNewChat);
@@ -72,10 +80,16 @@ function ChatPage() {
     setLoading(true);
 
     try {
+      const payload = { question: userQuestion };
+      // If we're in an existing session, include the session_id
+      if (currentSessionId) {
+        payload.session_id = currentSessionId;
+      }
+
       const response = await fetch(`${API_BASE_URL}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: userQuestion })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -130,8 +144,10 @@ function ChatPage() {
                   return updated;
                 });
                 
-                if (data.chat_id) {
-                  setSearchParams({ log_id: data.chat_id });
+                // Save session_id for follow-up questions
+                if (data.session_id) {
+                  setCurrentSessionId(data.session_id);
+                  setSearchParams({ session_id: data.session_id });
                 }
               }
             } catch (err) {

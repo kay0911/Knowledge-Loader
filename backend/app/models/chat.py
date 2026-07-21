@@ -8,6 +8,7 @@ class ChatLog(Base):
     __tablename__ = "chat_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=True)
     retrieved_chunk_ids = Column(JSON, nullable=True) # List of UUID string values of chunks

@@ -2,6 +2,7 @@ import os
 import re
 import time
 import json
+import uuid as uuid_mod
 import google.generativeai as genai
 from typing import List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
@@ -37,7 +38,7 @@ class ChatService:
             cls._configured = True
 
     @classmethod
-    def ask(cls, db: Session, question: str) -> Tuple[ChatLog, List[Dict[str, Any]]]:
+    def ask(cls, db: Session, question: str, session_id: str = None) -> Tuple[ChatLog, List[Dict[str, Any]]]:
         """
         Run the Q&A pipeline:
         1. Run hybrid retrieval to get top relevant context chunks.
@@ -130,7 +131,9 @@ class ChatService:
                     })
 
         # 5. Record to PostgreSQL
+        resolved_session_id = session_id or str(uuid_mod.uuid4())
         chat_log = ChatLog(
+            session_id=resolved_session_id,
             question=question,
             answer=answer,
             retrieved_chunk_ids=[str(c.id) for c in chunks],
@@ -151,7 +154,7 @@ class ChatService:
         return chat_log, citations
 
     @classmethod
-    def ask_stream(cls, db: Session, question: str):
+    def ask_stream(cls, db: Session, question: str, session_id: str = None):
         """
         Streaming version of ask:
         Yields content chunks in SSE format first, then yields metadata at the end.
@@ -225,7 +228,9 @@ class ChatService:
                 })
                 
         # 5. Record to PostgreSQL
+        resolved_session_id = session_id or str(uuid_mod.uuid4())
         chat_log = ChatLog(
+            session_id=resolved_session_id,
             question=question,
             answer=answer,
             retrieved_chunk_ids=[str(c.id) for c in chunks],
@@ -244,4 +249,4 @@ class ChatService:
             logger.error(f"Failed to save streaming chat log: {str(e)}")
             
         # 6. Yield metadata at the end of the stream
-        yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'citations': citations}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': citations}, ensure_ascii=False)}\n\n"

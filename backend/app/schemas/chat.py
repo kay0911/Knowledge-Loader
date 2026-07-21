@@ -19,10 +19,12 @@ class CitationResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str
+    session_id: Optional[UUID] = None
 
 
 class ChatResponse(BaseModel):
     chat_id: UUID
+    session_id: UUID
     answer: str
     citations: List[CitationResponse]
 
@@ -31,6 +33,7 @@ class ChatResponse(BaseModel):
 
 class ChatLogResponse(BaseModel):
     id: UUID
+    session_id: UUID
     question: str
     answer: Optional[str] = None
     retrieved_chunk_ids: Optional[List[UUID]] = None
