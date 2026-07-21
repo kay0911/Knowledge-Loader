@@ -292,8 +292,9 @@ function AppContent() {
             top: '12px', 
             left: '12px', 
             zIndex: 100, 
-            backgroundColor: '#2f2f2f', 
-            border: '1px solid rgba(255, 255, 255, 0.05)' 
+            backgroundColor: 'var(--input-bg)', 
+            border: '1px solid var(--sidebar-border)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)'
           }}
         >
           <Menu className="w-4 h-4" />
