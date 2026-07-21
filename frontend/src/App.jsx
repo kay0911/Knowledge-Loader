@@ -13,12 +13,28 @@ import {
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 function AppContent() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
   const [chatHistory, setChatHistory] = useState([]);
   const [historyLimit, setHistoryLimit] = useState(10);
   const [activeLogId, setActiveLogId] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Watch screen resize for mobile threshold
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Track the currently active log ID from the search query params
   useEffect(() => {
@@ -47,15 +63,21 @@ function AppContent() {
   const handleNewChat = () => {
     setActiveLogId(null);
     navigate('/chat');
+    if (isMobile) setSidebarOpen(false);
     // Dispatch a custom event to tell ChatPage to clear state if it's already on /chat
     window.dispatchEvent(new Event('new-chat-triggered'));
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#212121', color: '#e3e3e3' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#212121', color: '#e3e3e3', position: 'relative' }}>
       
+      {/* Mobile Backdrop Overlay */}
+      {isMobile && sidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Collapsible Sidebar */}
-      <aside className="chatgpt-sidebar" style={{ 
+      <aside className={`chatgpt-sidebar ${sidebarOpen ? '' : 'closed'}`} style={{ 
         width: sidebarOpen ? '260px' : '0px', 
         minWidth: sidebarOpen ? '260px' : '0px', 
         overflowX: 'hidden'
@@ -119,6 +141,7 @@ function AppContent() {
               to={activeLogId ? `/chat?log_id=${activeLogId}` : "/chat"} 
               className={({ isActive }) => `chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
               style={{ textDecoration: 'none' }}
+              onClick={() => { if (isMobile) setSidebarOpen(false); }}
             >
               <MessageSquare className="w-4 h-4" />
               Trợ lý AI
@@ -127,6 +150,7 @@ function AppContent() {
               to="/" 
               className={({ isActive }) => `chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
               style={{ textDecoration: 'none' }}
+              onClick={() => { if (isMobile) setSidebarOpen(false); }}
             >
               <FolderKanban className="w-4 h-4" />
               Quản lý tài liệu
@@ -157,7 +181,10 @@ function AppContent() {
                   return (
                     <div 
                       key={chat.id} 
-                      onClick={() => navigate(`/chat?log_id=${chat.id}`)}
+                      onClick={() => {
+                        navigate(`/chat?log_id=${chat.id}`);
+                        if (isMobile) setSidebarOpen(false);
+                      }}
                       className={`chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
                       style={{ 
                         whiteSpace: 'nowrap', 

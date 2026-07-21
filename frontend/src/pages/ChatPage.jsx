@@ -72,33 +72,78 @@ function ChatPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/`, {
+      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: userQuestion })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        // Add AI Message with citations
-        const aiMsg = {
-          sender: 'ai',
-          text: data.answer,
-          citations: data.citations
-        };
-        setMessages(prev => [...prev, aiMsg]);
-        // Update URL to match this new session log id
-        if (data.chat_id) {
-          setSearchParams({ log_id: data.chat_id });
-        }
-      } else {
-        const errData = await response.json();
-        const errorMsg = { sender: 'ai', text: `Lỗi: ${errData.detail || 'Không thể lấy phản hồi từ server.'}` };
-        setMessages(prev => [...prev, errorMsg]);
+      if (!response.ok) {
+        throw new Error("HTTP error " + response.status);
       }
+
+      // Add a placeholder message for AI
+      const aiMsg = {
+        sender: 'ai',
+        text: '',
+        citations: []
+      };
+      setMessages(prev => [...prev, aiMsg]);
+
+      // Read response stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let accumulatedAnswer = '';
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep partial line
+
+        for (const line of lines) {
+          const cleanLine = line.trim();
+          if (cleanLine.startsWith('data: ')) {
+            const dataStr = cleanLine.substring(6);
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.type === 'content') {
+                accumulatedAnswer += data.content;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    ...updated[updated.length - 1],
+                    text: accumulatedAnswer
+                  };
+                  return updated;
+                });
+              } else if (data.type === 'metadata') {
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    ...updated[updated.length - 1],
+                    citations: data.citations || []
+                  };
+                  return updated;
+                });
+                
+                if (data.chat_id) {
+                  setSearchParams({ log_id: data.chat_id });
+                }
+              }
+            } catch (err) {
+              console.error("Error parsing stream chunk:", err);
+            }
+          }
+        }
+      }
+
     } catch (err) {
       console.error(err);
-      const errorMsg = { sender: 'ai', text: 'Lỗi kết nối tới máy chủ. Vui lòng kiểm tra lại dịch vụ backend.' };
+      const errorMsg = { sender: 'ai', text: 'Lỗi kết nối tới máy chủ hoặc luồng dữ liệu bị ngắt.' };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setLoading(false);

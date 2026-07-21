@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List
@@ -54,8 +55,25 @@ def get_chat_detail(chat_id: UUID, db: Session = Depends(get_db)):
     """
     log = db.query(ChatLog).filter(ChatLog.id == chat_id).first()
     if not log:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Chat log not found"
-        )
+      raise HTTPException(
+          status_code=status.HTTP_404_NOT_FOUND,
+          detail="Chat log not found"
+      )
     return log
+
+
+@router.post("/stream")
+def ask_question_stream(payload: ChatRequest, db: Session = Depends(get_db)):
+    """
+    Submit a question and receive streaming character-by-character cited answers via SSE.
+    """
+    if not payload.question.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question cannot be empty"
+        )
+        
+    return StreamingResponse(
+        ChatService.ask_stream(db, payload.question),
+        media_type="text/event-stream"
+    )

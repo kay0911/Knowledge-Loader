@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import json
 import google.generativeai as genai
 from typing import List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
@@ -148,3 +149,99 @@ class ChatService:
             logger.error(f"Failed to save chat log: {str(e)}")
             
         return chat_log, citations
+
+    @classmethod
+    def ask_stream(cls, db: Session, question: str):
+        """
+        Streaming version of ask:
+        Yields content chunks in SSE format first, then yields metadata at the end.
+        """
+        cls._configure()
+        start_time = time.time()
+        
+        # 1. Retrieve hybrid chunks
+        chunks, graph_relationships = RetrievalService.retrieve_hybrid(db, question)
+        
+        # 2. Format Context
+        context_blocks = []
+        for i, chunk in enumerate(chunks):
+            source_id = f"S{i+1}"
+            meta = f"Source ID: {source_id}\nTên file: {chunk.document.original_file_name}"
+            if chunk.page_number:
+                meta += f", Trang: {chunk.page_number}"
+            if chunk.heading:
+                meta += f", Heading: {chunk.heading}"
+            if chunk.sheet_name:
+                meta += f", Sheet: {chunk.sheet_name} (Dòng {chunk.row_start}-{chunk.row_end})"
+            
+            block = f"{meta}\nNội dung: {chunk.content}"
+            context_blocks.append(block)
+            
+        context_str = "\n---\n".join(context_blocks)
+        
+        # 3. Call Gemini LLM in stream mode
+        answer = ""
+        try:
+            model = genai.GenerativeModel(model_name=settings.GEMINI_LLM_MODEL)
+            prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question)
+            
+            logger.info("Calling Gemini LLM for streaming Q&A...")
+            response = model.generate_content(prompt, stream=True)
+            
+            for chunk in response:
+                chunk_text = chunk.text
+                answer += chunk_text
+                # Yield content chunk in SSE format
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk_text}, ensure_ascii=False)}\n\n"
+                
+        except Exception as e:
+            logger.error(f"Gemini LLM streaming call failed: {str(e)}", exc_info=True)
+            err_text = "Đã xảy ra lỗi khi gọi trợ lý AI. Vui lòng thử lại sau."
+            answer = err_text
+            yield f"data: {json.dumps({'type': 'content', 'content': err_text}, ensure_ascii=False)}\n\n"
+            
+        # Calculate latency
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # 4. Compile Citations
+        citations = []
+        cited_indices = re.findall(r"\[S(\d+)\]", answer)
+        cited_nums = {int(idx) - 1 for idx in cited_indices if idx.isdigit()}
+        
+        for idx in sorted(cited_nums):
+            if 0 <= idx < len(chunks):
+                chunk = chunks[idx]
+                snippet = chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
+                citations.append({
+                    "source_id": f"S{idx+1}",
+                    "document_id": str(chunk.document_id),
+                    "file_name": chunk.document.original_file_name,
+                    "page_number": chunk.page_number,
+                    "heading": chunk.heading,
+                    "sheet_name": chunk.sheet_name,
+                    "row_start": chunk.row_start,
+                    "row_end": chunk.row_end,
+                    "snippet": snippet
+                })
+                
+        # 5. Record to PostgreSQL
+        chat_log = ChatLog(
+            question=question,
+            answer=answer,
+            retrieved_chunk_ids=[str(c.id) for c in chunks],
+            graph_context=graph_relationships,
+            citations=citations,
+            latency_ms=latency_ms
+        )
+        
+        try:
+            db.add(chat_log)
+            db.commit()
+            db.refresh(chat_log)
+            logger.info(f"Chat log saved via stream with ID: {chat_log.id}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to save streaming chat log: {str(e)}")
+            
+        # 6. Yield metadata at the end of the stream
+        yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'citations': citations}, ensure_ascii=False)}\n\n"
