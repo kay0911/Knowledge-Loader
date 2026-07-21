@@ -183,17 +183,25 @@ function ChatPage() {
     { title: "Quy trình hỗ trợ IT", desc: "Cài đặt phần mềm nội bộ liên hệ ai?" }
   ];
 
-  // Helper function to render text and make citations [S1], [S2] clickable
-  const renderMessageText = (text, citations = []) => {
-    if (!text) return null;
-    const parts = text.split(/(\[S\d+\])/g);
+  // Inline markdown parser for **bold** and [S1] citations
+  const parseMarkdownInline = (inlineText, citations) => {
+    if (!inlineText) return "";
+    
+    // Split by bold patterns (**...**) and citations ([S1])
+    const parts = inlineText.split(/(\*\*.*?\*\*|\[S\d+\])/g);
     
     return parts.map((part, idx) => {
+      // Check if it is bold
+      if (part.startsWith('**') && part.endsWith('**')) {
+        const innerText = part.slice(2, -2);
+        return <strong key={idx} style={{ color: '#fff', fontWeight: 600 }}>{parseMarkdownInline(innerText, citations)}</strong>;
+      }
+      
+      // Check if it is citation tag
       const match = part.match(/^\[S(\d+)\]$/);
       if (match) {
         const num = match[1];
         const citation = citations.find(c => c.source_id === `S${num}`);
-        
         return (
           <button
             key={idx}
@@ -204,7 +212,7 @@ function ChatPage() {
               color: '#34d399',
               borderRadius: '6px',
               padding: '1px 6px',
-              fontSize: '0.8rem',
+              fontSize: '0.85rem',
               fontWeight: 600,
               cursor: 'pointer',
               margin: '0 3px',
@@ -220,7 +228,46 @@ function ChatPage() {
           </button>
         );
       }
+      
       return part;
+    });
+  };
+
+  // Helper function to render text with bullet points and bolding
+  const renderMessageText = (text, citations = []) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    
+    return lines.map((line, idx) => {
+      let trimmed = line.trim();
+      
+      // Check if list item
+      if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+        const content = trimmed.substring(2);
+        return (
+          <div key={idx} style={{ 
+            display: 'flex', 
+            paddingLeft: '16px', 
+            marginBottom: '8px',
+            alignItems: 'flex-start',
+            lineHeight: '1.6'
+          }}>
+            <span style={{ marginRight: '8px', color: '#10b981', flexShrink: 0 }}>•</span>
+            <span style={{ flex: 1 }}>{parseMarkdownInline(content, citations)}</span>
+          </div>
+        );
+      }
+      
+      // Plain paragraph
+      return (
+        <p key={idx} style={{ 
+          marginBottom: '10px', 
+          lineHeight: '1.6',
+          minHeight: '1em'
+        }}>
+          {parseMarkdownInline(line, citations)}
+        </p>
+      );
     });
   };
 
