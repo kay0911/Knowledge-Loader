@@ -526,3 +526,15 @@ body {
   animation: fadeIn 0.25s ease-out;
 }
 
+/* Dynamic input area background gradient wrapper */
+.chatgpt-input-wrapper {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, var(--main-bg) 70%, transparent 100%);
+  padding: 24px 0;
+  z-index: 10;
+  transition: background 0.25s;
+}
+

@@ -403,15 +403,7 @@ function ChatPage() {
         </div>
 
         {/* Input Bar Section */}
-        <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          background: 'linear-gradient(to top, #212121 70%, transparent 100%)',
-          padding: '24px 0',
-          zIndex: 10
-        }}>
+        <div className="chatgpt-input-wrapper">
           {/* History Mode Toggle Switch */}
           <div style={{
             display: 'flex',
@@ -490,7 +482,7 @@ function ChatPage() {
             </button>
           </form>
           
-          <div style={{ fontSize: '0.7rem', color: '#555', textAlign: 'center', marginTop: '8px' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-light)', textAlign: 'center', marginTop: '8px' }}>
             Hệ thống GraphRAG sử dụng lai ghép vectơ (Hybrid Search) kết hợp trích xuất thực thể đồ thị Neo4j.
           </div>
         </div>
