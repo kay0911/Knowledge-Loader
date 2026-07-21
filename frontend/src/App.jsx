@@ -114,7 +114,7 @@ function AppContent() {
                 color: '#fff',
                 fontSize: '0.85rem'
               }}>G</div>
-              <span style={{ fontWeight: 600, fontSize: '0.95rem', color: '#eceecf' }}>GraphRAG AI</span>
+              <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-color)' }}>GraphRAG AI</span>
             </div>
             
             <div style={{ display: 'flex', gap: '8px' }}>

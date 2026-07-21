@@ -194,7 +194,7 @@ function ChatPage() {
       // Check if it is bold
       if (part.startsWith('**') && part.endsWith('**')) {
         const innerText = part.slice(2, -2);
-        return <strong key={idx} style={{ color: '#fff', fontWeight: 600 }}>{parseMarkdownInline(innerText, citations)}</strong>;
+        return <strong key={idx} style={{ color: 'var(--text-color)', fontWeight: 600 }}>{parseMarkdownInline(innerText, citations)}</strong>;
       }
       
       // Check if it is citation tag
@@ -250,10 +250,11 @@ function ChatPage() {
             paddingLeft: '16px', 
             marginBottom: '8px',
             alignItems: 'flex-start',
-            lineHeight: '1.6'
+            lineHeight: '1.6',
+            color: 'var(--text-color)'
           }}>
             <span style={{ marginRight: '8px', color: '#10b981', flexShrink: 0 }}>•</span>
-            <span style={{ flex: 1 }}>{parseMarkdownInline(content, citations)}</span>
+            <span style={{ flex: 1, color: 'var(--text-color)' }}>{parseMarkdownInline(content, citations)}</span>
           </div>
         );
       }
@@ -263,7 +264,8 @@ function ChatPage() {
         <p key={idx} style={{ 
           marginBottom: '10px', 
           lineHeight: '1.6',
-          minHeight: '1em'
+          minHeight: '1em',
+          color: 'var(--text-color)'
         }}>
           {parseMarkdownInline(line, citations)}
         </p>
