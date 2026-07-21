@@ -7,7 +7,8 @@ import axios from 'axios';
 import { 
   MessageSquare, Layers, Menu, Plus, ChevronLeft, 
   Trash2, HelpCircle, FileText, CheckCircle2,
-  AlertTriangle, Clock, RefreshCw, Sparkles, FolderKanban
+  AlertTriangle, Clock, RefreshCw, Sparkles, FolderKanban,
+  Sun, Moon
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -18,8 +19,22 @@ function AppContent() {
   const [historyLimit, setHistoryLimit] = useState(10);
   const [activeLogId, setActiveLogId] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   // Watch screen resize for mobile threshold
   useEffect(() => {
@@ -69,7 +84,7 @@ function AppContent() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#212121', color: '#e3e3e3', position: 'relative' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--main-bg)', color: 'var(--text-color)', position: 'relative' }}>
       
       {/* Mobile Backdrop Overlay */}
       {isMobile && sidebarOpen && (
@@ -102,9 +117,18 @@ function AppContent() {
               <span style={{ fontWeight: 600, fontSize: '0.95rem', color: '#eceecf' }}>GraphRAG AI</span>
             </div>
             
-            <button className="chatgpt-btn-icon" onClick={() => setSidebarOpen(false)}>
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className="chatgpt-btn-icon" 
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Chuyển sang Chế độ sáng' : 'Chuyển sang Chế độ tối'}
+              >
+                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              <button className="chatgpt-btn-icon" onClick={() => setSidebarOpen(false)}>
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* New Chat Button */}
@@ -232,7 +256,7 @@ function AppContent() {
           <div style={{ 
             marginTop: 'auto', 
             paddingTop: '12px', 
-            borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
+            borderTop: '1px solid var(--sidebar-border)', 
             display: 'flex', 
             alignItems: 'center', 
             gap: '10px' 
@@ -250,8 +274,8 @@ function AppContent() {
               fontSize: '0.9rem'
             }}>D</div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f9f9f9' }}>Dion Plus</span>
-              <span style={{ fontSize: '0.7rem', color: '#8e8e8e' }}>Chế độ Trợ lý RAG</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)' }}>Dion Plus</span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-light)' }}>Chế độ Trợ lý RAG</span>
             </div>
           </div>
 

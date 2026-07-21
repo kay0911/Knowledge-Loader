@@ -500,8 +500,8 @@ function ChatPage() {
         <div className="glass-panel" style={{
           width: '320px',
           padding: '24px',
-          borderLeft: '1px solid rgba(255, 255, 255, 0.05)',
-          background: '#171717',
+          borderLeft: '1px solid var(--sidebar-border)',
+          background: 'var(--panel-bg)',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -511,7 +511,7 @@ function ChatPage() {
           zIndex: 20
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>
+            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-color)' }}>
               Trích dẫn [{activeCitation.source_id}]
             </h4>
             <button
@@ -519,7 +519,7 @@ function ChatPage() {
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#8e8e8e',
+                color: 'var(--text-light)',
                 fontSize: '1.1rem',
                 cursor: 'pointer',
                 padding: '4px'
@@ -531,44 +531,44 @@ function ChatPage() {
           
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '4px' }}>
             <div>
-              <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Tài liệu nguồn</div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 500, color: '#cbd5e1' }}>{activeCitation.file_name}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Tài liệu nguồn</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-color)' }}>{activeCitation.file_name}</div>
             </div>
 
             {activeCitation.page_number && (
               <div>
-                <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Trang số</div>
-                <div style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>Trang {activeCitation.page_number}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Trang số</div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-color)' }}>Trang {activeCitation.page_number}</div>
               </div>
             )}
 
             {activeCitation.heading && (
               <div>
-                <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Mục tiêu đề</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Mục tiêu đề</div>
                 <div style={{ fontSize: '0.85rem', color: '#a5b4fc', fontFamily: 'monospace', background: 'rgba(99, 102, 241, 0.1)', padding: '4px 8px', borderRadius: '4px', display: 'inline-block' }}>{activeCitation.heading}</div>
               </div>
             )}
 
             {activeCitation.sheet_name && (
               <div>
-                <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Bảng tính Excel</div>
-                <div style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Bảng tính Excel</div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-color)' }}>
                   Sheet: <strong>{activeCitation.sheet_name}</strong> (Dòng {activeCitation.row_start} - {activeCitation.row_end})
                 </div>
               </div>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '150px' }}>
-              <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Nội dung đoạn trích</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Nội dung đoạn trích</div>
               <div style={{
                 flex: 1,
                 fontSize: '0.825rem',
                 lineHeight: '1.6',
-                color: '#94a3b8',
-                background: 'rgba(0, 0, 0, 0.3)',
+                color: 'var(--text-color)',
+                background: 'var(--input-bg)',
                 padding: '16px',
                 borderRadius: '12px',
-                border: '1px solid rgba(255, 255, 255, 0.03)',
+                border: '1px solid var(--sidebar-border)',
                 whiteSpace: 'pre-wrap',
                 overflowY: 'auto'
               }}>
