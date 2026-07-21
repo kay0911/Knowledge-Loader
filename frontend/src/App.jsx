@@ -141,16 +141,16 @@ function AppContent() {
               width: '100%',
               padding: '10px 14px',
               borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
+              border: '1px solid var(--sidebar-border)',
               background: 'transparent',
-              color: '#f9f9f9',
+              color: 'var(--text-color)',
               fontSize: '0.9rem',
               fontWeight: 500,
               cursor: 'pointer',
               marginBottom: '20px',
-              transition: 'background-color 0.2s'
+              transition: 'background-color 0.2s, border-color 0.2s, color 0.2s'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--sidebar-item-hover)'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

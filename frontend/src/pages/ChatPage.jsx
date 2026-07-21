@@ -316,7 +316,7 @@ function ChatPage() {
                 <Sparkles className="w-8 h-8" />
               </div>
 
-              <h2 style={{ fontSize: '1.8rem', fontWeight: 600, color: '#f9f9f9', margin: 0, textAlign: 'center' }}>
+              <h2 style={{ fontSize: '1.8rem', fontWeight: 600, color: 'var(--text-color)', margin: 0, textAlign: 'center' }}>
                 Hôm nay tôi có thể giúp gì cho bạn?
               </h2>
 
