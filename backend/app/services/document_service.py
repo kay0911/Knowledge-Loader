@@ -111,11 +111,13 @@ class DocumentService:
 
     @staticmethod
     def get_documents(db: Session):
-        return db.query(Document).filter(Document.status != "DELETED").order_by(Document.created_at.desc()).all()
+        from sqlalchemy.orm import selectinload
+        return db.query(Document).options(selectinload(Document.versions)).filter(Document.status != "DELETED").order_by(Document.created_at.desc()).all()
 
     @staticmethod
     def get_document_by_id(db: Session, document_id: str) -> Document:
-        return db.query(Document).filter(Document.id == document_id).first()
+        from sqlalchemy.orm import selectinload
+        return db.query(Document).options(selectinload(Document.versions)).filter(Document.id == document_id).first()
 
     @staticmethod
     def get_document_chunks(db: Session, document_id: str) -> list:

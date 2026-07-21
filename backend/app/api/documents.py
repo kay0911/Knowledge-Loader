@@ -9,19 +9,17 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-def map_to_detail(db: Session, doc) -> dict:
+def map_to_detail(doc, chunk_counts: dict) -> dict:
     versions = doc.versions
     chunks_count = 0
-    if doc.active_version_id:
-        chunks_count = db.query(DocumentChunk).filter(
-            DocumentChunk.document_version_id == doc.active_version_id
-        ).count()
-    elif versions:
+    target_version_id = doc.active_version_id
+    if not target_version_id and versions:
         # Find latest version chunk count
         latest_version = sorted(versions, key=lambda v: v.version_number, reverse=True)[0]
-        chunks_count = db.query(DocumentChunk).filter(
-            DocumentChunk.document_version_id == latest_version.id
-        ).count()
+        target_version_id = latest_version.id
+        
+    if target_version_id:
+        chunks_count = chunk_counts.get(target_version_id, 0)
         
     return {
         "id": doc.id,
@@ -62,14 +60,58 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
 @router.get("", response_model=List[DocumentDetailResponse])
 def list_documents(db: Session = Depends(get_db)):
     docs = DocumentService.get_documents(db)
-    return [map_to_detail(db, doc) for doc in docs]
+    
+    # Pre-calculate target version IDs for batch count querying
+    version_ids = []
+    for doc in docs:
+        if doc.active_version_id:
+            version_ids.append(doc.active_version_id)
+        elif doc.versions:
+            latest_version = sorted(doc.versions, key=lambda v: v.version_number, reverse=True)[0]
+            version_ids.append(latest_version.id)
+            
+    chunk_counts = {}
+    if version_ids:
+        from sqlalchemy import func
+        counts_res = db.query(
+            DocumentChunk.document_version_id,
+            func.count(DocumentChunk.id)
+        ).filter(
+            DocumentChunk.document_version_id.in_(version_ids)
+        ).group_by(
+            DocumentChunk.document_version_id
+        ).all()
+        chunk_counts = {r[0]: r[1] for r in counts_res}
+        
+    return [map_to_detail(doc, chunk_counts) for doc in docs]
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
 def get_document(document_id: str, db: Session = Depends(get_db)):
     doc = DocumentService.get_document_by_id(db, document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    return map_to_detail(db, doc)
+        
+    version_ids = []
+    if doc.active_version_id:
+        version_ids.append(doc.active_version_id)
+    elif doc.versions:
+        latest_version = sorted(doc.versions, key=lambda v: v.version_number, reverse=True)[0]
+        version_ids.append(latest_version.id)
+        
+    chunk_counts = {}
+    if version_ids:
+        from sqlalchemy import func
+        counts_res = db.query(
+            DocumentChunk.document_version_id,
+            func.count(DocumentChunk.id)
+        ).filter(
+            DocumentChunk.document_version_id.in_(version_ids)
+        ).group_by(
+            DocumentChunk.document_version_id
+        ).all()
+        chunk_counts = {r[0]: r[1] for r in counts_res}
+        
+    return map_to_detail(doc, chunk_counts)
 
 @router.get("/{document_id}/chunks", response_model=List[DocumentChunkResponse])
 def get_document_chunks(document_id: str, db: Session = Depends(get_db)):
