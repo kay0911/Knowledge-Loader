@@ -157,10 +157,10 @@ export default function AdminDocumentsPage() {
       {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 700, margin: 0, color: '#f9f9f9', letterSpacing: '-0.02em' }}>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 700, margin: 0, color: 'var(--text-color)', letterSpacing: '-0.02em' }}>
             Quản lý tài liệu tri thức
           </h1>
-          <p style={{ color: '#8e8e8e', margin: '6px 0 0 0', fontSize: '0.9rem' }}>
+          <p style={{ color: 'var(--text-light)', margin: '6px 0 0 0', fontSize: '0.9rem' }}>
             Tải lên và xử lý tệp PDF, Word, Excel để nạp vào cơ sở tri thức GraphRAG.
           </p>
         </div>
@@ -168,7 +168,7 @@ export default function AdminDocumentsPage() {
         <button 
           onClick={() => fetchDocuments(true)} 
           className="chatgpt-btn-icon"
-          style={{ padding: '10px', backgroundColor: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)' }}
+          style={{ padding: '10px', backgroundColor: 'var(--input-bg)', border: '1px solid var(--sidebar-border)' }}
           title="Tải lại danh sách"
           disabled={refreshing}
         >
@@ -180,32 +180,32 @@ export default function AdminDocumentsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: '24px' }}>
         
         {/* Upload File Box */}
-        <div className="glass-panel" style={{ padding: '24px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>
+        <div className="glass-panel" style={{ padding: '24px' }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 600, color: 'var(--text-color)' }}>
             Tải tài liệu mới lên
           </h3>
           
           <div 
             onClick={() => fileInputRef.current?.click()}
             style={{
-              border: '2px dashed rgba(255, 255, 255, 0.1)',
+              border: '2px dashed var(--sidebar-border)',
               borderRadius: '12px',
               padding: '40px 20px',
               textAlign: 'center',
               cursor: uploading ? 'not-allowed' : 'pointer',
-              backgroundColor: 'rgba(0, 0, 0, 0.1)',
+              backgroundColor: 'var(--sub-box-bg)',
               transition: 'all 0.2s ease-in-out'
             }}
             onMouseEnter={(e) => {
               if (!uploading) {
                 e.currentTarget.style.borderColor = '#10b981';
-                e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.02)';
+                e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.04)';
               }
             }}
             onMouseLeave={(e) => {
               if (!uploading) {
-                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+                e.currentTarget.style.borderColor = 'var(--sidebar-border)';
+                e.currentTarget.style.backgroundColor = 'var(--sub-box-bg)';
               }
             }}
           >
@@ -221,16 +221,16 @@ export default function AdminDocumentsPage() {
             {uploading ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                 <RefreshCw className="w-10 h-10 text-emerald-400 animate-spin" />
-                <p style={{ color: '#cbd5e1', fontSize: '0.9rem', margin: 0 }}>Đang truyền tải và đăng ký tệp vào hệ thống...</p>
+                <p style={{ color: 'var(--text-color)', fontSize: '0.9rem', margin: 0 }}>Đang truyền tải và đăng ký tệp vào hệ thống...</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                 <UploadCloud className="w-10 h-10 text-emerald-400" />
                 <div>
-                  <p style={{ color: '#cbd5e1', fontSize: '0.95rem', fontWeight: 500, margin: '0 0 4px 0' }}>
+                  <p style={{ color: 'var(--text-color)', fontSize: '0.95rem', fontWeight: 500, margin: '0 0 4px 0' }}>
                     Nhấn vào đây để tải tệp lên
                   </p>
-                  <p style={{ color: '#8e8e8e', fontSize: '0.75rem', margin: 0 }}>
+                  <p style={{ color: 'var(--text-light)', fontSize: '0.75rem', margin: 0 }}>
                     Hỗ trợ tệp PDF, DOCX (Word), XLSX (Excel)
                   </p>
                 </div>
@@ -257,23 +257,23 @@ export default function AdminDocumentsPage() {
         {/* Quick statistics Widget Panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           
-          <div className="glass-panel" style={{ padding: '16px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Tổng số tệp</span>
-            <strong style={{ fontSize: '1.25rem', color: '#f9f9f9' }}>{totalDocs}</strong>
+          <div className="glass-panel" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>Tổng số tệp</span>
+            <strong style={{ fontSize: '1.25rem', color: 'var(--text-color)' }}>{totalDocs}</strong>
           </div>
 
-          <div className="glass-panel" style={{ padding: '16px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Sẵn sàng (Ready)</span>
+          <div className="glass-panel" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>Sẵn sàng (Ready)</span>
             <strong style={{ fontSize: '1.25rem', color: '#10b981' }}>{readyDocs}</strong>
           </div>
 
-          <div className="glass-panel" style={{ padding: '16px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Đang xử lý</span>
+          <div className="glass-panel" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>Đang xử lý</span>
             <strong style={{ fontSize: '1.25rem', color: '#3b82f6' }}>{processingDocs}</strong>
           </div>
 
-          <div className="glass-panel" style={{ padding: '16px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Xử lý lỗi</span>
+          <div className="glass-panel" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>Xử lý lỗi</span>
             <strong style={{ fontSize: '1.25rem', color: '#ef4444' }}>{failedDocs}</strong>
           </div>
 
@@ -282,21 +282,21 @@ export default function AdminDocumentsPage() {
       </div>
 
       {/* Documents Table list */}
-      <div className="glass-panel" style={{ padding: '24px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>
+      <div className="glass-panel" style={{ padding: '24px' }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 600, color: 'var(--text-color)' }}>
           Tài liệu trong hệ thống
         </h3>
         
         {documents.length === 0 ? (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: '#8e8e8e' }}>
-            <FileText className="w-12 h-12 text-slate-600" style={{ margin: '0 auto 12px auto' }} />
+          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-light)' }}>
+            <FileText className="w-12 h-12 text-slate-400" style={{ margin: '0 auto 12px auto' }} />
             <p style={{ margin: 0, fontSize: '0.9rem' }}>Chưa có tài liệu nào trong cơ sở dữ liệu.</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', color: '#8e8e8e' }}>
+                <tr style={{ borderBottom: '1px solid var(--table-border)', color: 'var(--text-light)' }}>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Tên tài liệu</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Định dạng</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Routing</th>
@@ -309,18 +309,18 @@ export default function AdminDocumentsPage() {
                 {documents.map((doc) => (
                   <tr 
                     key={doc.id} 
-                    style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.02)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.01)'}
+                    style={{ borderBottom: '1px solid var(--table-border)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--sidebar-item-hover)'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
                     
                     {/* File Name & UUID */}
                     <td style={{ padding: '16px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 500, color: '#e2e8f0', cursor: 'pointer' }} onClick={() => navigate(`/documents/${doc.id}`)}>
+                        <span style={{ fontWeight: 500, color: 'var(--text-color)', cursor: 'pointer' }} onClick={() => navigate(`/documents/${doc.id}`)}>
                           {doc.original_file_name}
                         </span>
-                        <span style={{ fontSize: '0.7rem', color: '#666', marginTop: '2px' }}>{doc.id}</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '2px' }}>{doc.id}</span>
                       </div>
                     </td>
 
@@ -344,7 +344,7 @@ export default function AdminDocumentsPage() {
                       <span style={{ 
                         fontWeight: 600, 
                         fontSize: '0.75rem',
-                        color: doc.routing_result === 'NEW' ? '#a855f7' : doc.routing_result === 'UPDATED' ? '#f59e0b' : '#94a3b8' 
+                        color: doc.routing_result === 'NEW' ? '#a855f7' : doc.routing_result === 'UPDATED' ? '#f59e0b' : 'var(--text-light)' 
                       }}>
                         {doc.routing_result || '-'}
                       </span>
@@ -364,7 +364,7 @@ export default function AdminDocumentsPage() {
                     </td>
 
                     {/* Chunk counts */}
-                    <td style={{ padding: '16px', fontWeight: 600, color: '#e2e8f0' }}>
+                    <td style={{ padding: '16px', fontWeight: 600, color: 'var(--text-color)' }}>
                       {doc.status === 'READY' ? doc.chunks_count : '-'}
                     </td>
 
@@ -458,7 +458,7 @@ export default function AdminDocumentsPage() {
             display: 'flex',
             flexDirection: 'column',
             gap: '20px',
-            background: '#171717'
+            background: 'var(--modal-bg)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div style={{
@@ -474,13 +474,13 @@ export default function AdminDocumentsPage() {
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#f87171' }}>
                   Xác nhận xóa tài liệu
                 </h3>
-                <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Hành động này không thể hoàn tác</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>Hành động này không thể hoàn tác</span>
               </div>
             </div>
 
-            <div style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', background: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+            <div style={{ color: 'var(--text-color)', fontSize: '0.95rem', lineHeight: '1.6', background: 'var(--sub-box-bg)', padding: '16px', borderRadius: '12px', border: '1px solid var(--table-border)' }}>
               Bạn có chắc chắn muốn xóa tài liệu <strong style={{ color: '#10b981' }}>"{documentToDelete.fileName}"</strong> không? 
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: '#8e8e8e' }}>
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: 'var(--text-light)' }}>
                 <div>• Xóa các chunks trong cơ sở dữ liệu PostgreSQL.</div>
                 <div>• Gỡ bỏ liên kết thực thể (Neo4j).</div>
                 <div>• Rebuild lại chỉ mục tìm kiếm BM25.</div>
@@ -552,7 +552,7 @@ export default function AdminDocumentsPage() {
             display: 'flex',
             flexDirection: 'column',
             gap: '20px',
-            background: '#171717'
+            background: 'var(--modal-bg)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div style={{
@@ -568,16 +568,15 @@ export default function AdminDocumentsPage() {
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#818cf8' }}>
                   Xử lý lại tài liệu
                 </h3>
-                <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Tạo phiên bản mới cho tài liệu này</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>Tạo phiên bản mới cho tài liệu này</span>
               </div>
             </div>
 
-            <div style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', background: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+            <div style={{ color: 'var(--text-color)', fontSize: '0.95rem', lineHeight: '1.6', background: 'var(--sub-box-bg)', padding: '16px', borderRadius: '12px', border: '1px solid var(--table-border)' }}>
               Bạn có chắc chắn muốn xử lý lại tài liệu <strong style={{ color: '#10b981' }}>"{documentToReprocess.fileName}"</strong> không? 
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: '#8e8e8e' }}>
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: 'var(--text-light)' }}>
                 <div>• Tạo phiên bản mới (`DocumentVersion`) chạy ngầm.</div>
                 <div>• Chạy lại toàn bộ pipeline trích xuất tri thức (RAG).</div>
-                <div>• Tự động kích hoạt khi thành công, giữ nguyên bản cũ nếu lỗi.</div>
               </div>
             </div>
 

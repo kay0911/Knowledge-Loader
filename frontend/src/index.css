@@ -24,7 +24,7 @@
   --message-assistant-bg: rgba(255, 255, 255, 0.02);
   --message-border: rgba(255, 255, 255, 0.03);
   --card-bg: #2f2f2f;
-  --card-border: rgba(255, 255, 255, 0.1);
+  --card-border: rgba(255, 255, 255, 0.08);
   --card-hover-bg: #3e3e3e;
   --panel-bg: #171717;
   --btn-icon-hover: rgba(255, 255, 255, 0.08);
@@ -34,6 +34,9 @@
   --sidebar-item-active-color: #fff;
   --welcome-card-bg: #212121;
   --welcome-card-hover-bg: #2f2f2f;
+  --modal-bg: #171717;
+  --sub-box-bg: rgba(0, 0, 0, 0.2);
+  --table-border: rgba(255, 255, 255, 0.05);
 }
 
 .light-theme {
@@ -49,10 +52,10 @@
   --input-color: #0d0d0d;
   --message-assistant-bg: #f7f7f8;
   --message-border: rgba(0, 0, 0, 0.05);
-  --card-bg: #f9f9f9;
-  --card-border: rgba(0, 0, 0, 0.1);
-  --card-hover-bg: #ececf1;
-  --panel-bg: #f9f9f9;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --card-hover-bg: #f8fafc;
+  --panel-bg: #ffffff;
   --btn-icon-hover: rgba(0, 0, 0, 0.05);
   --btn-icon-color: #555555;
   --sidebar-item-hover: rgba(0, 0, 0, 0.05);
@@ -60,6 +63,9 @@
   --sidebar-item-active-color: #000;
   --welcome-card-bg: #ffffff;
   --welcome-card-hover-bg: #f7f7f8;
+  --modal-bg: #ffffff;
+  --sub-box-bg: #f8fafc;
+  --table-border: #e2e8f0;
 }
 
 body {
@@ -78,12 +84,11 @@ body {
 
 /* Glassmorphism card utility */
 .glass-panel {
-  background: rgba(21, 27, 46, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(38, 53, 88, 0.5);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 12px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.25s, border-color 0.25s, box-shadow 0.25s;
 }
 
 .glass-panel-hover {
@@ -199,9 +204,9 @@ body {
 }
 
 .btn-secondary {
-  background: rgba(31, 41, 55, 0.5);
-  color: #cbd5e1;
-  border: 1px solid rgba(75, 85, 99, 0.3);
+  background: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--sidebar-border);
   font-weight: 500;
   padding: 8px 16px;
   border-radius: 8px;
@@ -210,9 +215,9 @@ body {
 }
 
 .btn-secondary:hover {
-  background: rgba(55, 65, 81, 0.6);
-  color: white;
-  border-color: rgba(156, 163, 175, 0.5);
+  background: var(--sidebar-item-hover);
+  color: var(--text-color);
+  border-color: var(--card-border);
 }
 
 /* ChatGPT style layout utility classes */

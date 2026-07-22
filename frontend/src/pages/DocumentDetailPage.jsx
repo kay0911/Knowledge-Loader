@@ -126,7 +126,7 @@ export default function DocumentDetailPage() {
       </button>
 
       {/* Main Document Details Summary Panel */}
-      <div className="glass-panel" style={{ padding: '24px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+      <div className="glass-panel" style={{ padding: '24px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
         <div style={{ 
           background: 'rgba(16, 185, 129, 0.1)', 
           borderRadius: '12px', 
@@ -143,7 +143,7 @@ export default function DocumentDetailPage() {
         <div style={{ flex: 1, minWidth: '280px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: '#f9f9f9' }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-color)' }}>
                 {doc.original_file_name}
               </h1>
               <span style={{ 
@@ -185,27 +185,27 @@ export default function DocumentDetailPage() {
             </button>
           </div>
 
-          <p style={{ fontSize: '0.8rem', color: '#8e8e8e', margin: '4px 0 16px 0' }}>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', margin: '4px 0 16px 0' }}>
             ID Tài liệu: {doc.id}
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <div>
-              <span style={{ fontSize: '0.75rem', color: '#8e8e8e', textTransform: 'uppercase', fontWeight: 600 }}>Trạng thái</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: 600 }}>Trạng thái</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontWeight: 600 }}>
                 {getStatusIcon(doc.status)}
                 <span style={{ fontSize: '0.85rem' }}>{doc.status}</span>
               </div>
             </div>
             <div>
-              <span style={{ fontSize: '0.75rem', color: '#8e8e8e', textTransform: 'uppercase', fontWeight: 600 }}>Mã băm MD5</span>
-              <div style={{ fontSize: '0.85rem', marginTop: '4px', fontFamily: 'monospace', color: '#cbd5e1' }} title={doc.file_hash}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: 600 }}>Mã băm MD5</span>
+              <div style={{ fontSize: '0.85rem', marginTop: '4px', fontFamily: 'monospace', color: 'var(--text-color)' }} title={doc.file_hash}>
                 {doc.file_hash.substring(0, 16)}...
               </div>
             </div>
             <div>
-              <span style={{ fontSize: '0.75rem', color: '#8e8e8e', textTransform: 'uppercase', fontWeight: 600 }}>Nạp lần cuối</span>
-              <div style={{ fontSize: '0.85rem', marginTop: '4px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: 600 }}>Nạp lần cuối</span>
+              <div style={{ fontSize: '0.85rem', marginTop: '4px', color: 'var(--text-color)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
                 <span>{new Date(doc.created_at).toLocaleString()}</span>
               </div>
@@ -229,8 +229,8 @@ export default function DocumentDetailPage() {
         
         {/* Left Column: Version Log */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="glass-panel" style={{ padding: '20px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '12px', color: '#f1f5f9' }}>
+          <div className="glass-panel" style={{ padding: '20px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--table-border)', paddingBottom: '12px', color: 'var(--text-color)' }}>
               <Layers className="w-4 h-4 text-indigo-400" />
               Lịch sử phiên bản
             </h3>
@@ -240,8 +240,8 @@ export default function DocumentDetailPage() {
                 <div 
                   key={ver.id}
                   style={{ 
-                    background: ver.is_active ? 'rgba(16, 185, 129, 0.08)' : 'rgba(0, 0, 0, 0.2)',
-                    border: ver.is_active ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(255, 255, 255, 0.03)',
+                    background: ver.is_active ? 'rgba(16, 185, 129, 0.08)' : 'var(--sub-box-bg)',
+                    border: ver.is_active ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--table-border)',
                     padding: '12px 16px',
                     borderRadius: '8px',
                     position: 'relative'
@@ -264,13 +264,13 @@ export default function DocumentDetailPage() {
                     </span>
                   )}
                   
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: ver.is_active ? '#34d399' : '#e2e8f0' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: ver.is_active ? '#34d399' : 'var(--text-color)' }}>
                     Version {ver.version_number}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginTop: '6px', fontFamily: 'monospace' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '6px', fontFamily: 'monospace' }}>
                     Hash: {ver.file_hash.substring(0, 16)}...
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#8e8e8e', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
                     <span>Parser: {ver.parser_version} | Chunk: {ver.chunking_version}</span>
                     <span>{new Date(ver.created_at).toLocaleDateString()}</span>
                   </div>
@@ -281,14 +281,14 @@ export default function DocumentDetailPage() {
         </div>
 
         {/* Right Column: Chunks View */}
-        <div className="glass-panel" style={{ padding: '24px', background: '#2f2f2f', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '12px', color: '#f1f5f9' }}>
+        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--table-border)', paddingBottom: '12px', color: 'var(--text-color)' }}>
             <Hash className="w-4 h-4 text-emerald-400" />
             Đoạn văn bản trích xuất (Active Chunks) ({chunks.length})
           </h3>
           
           {chunks.length === 0 ? (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: '#8e8e8e' }}>
+            <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-light)' }}>
               Không có đoạn văn bản (chunks) nào được trích xuất cho phiên bản hoạt động này.
             </div>
           ) : (
@@ -297,8 +297,8 @@ export default function DocumentDetailPage() {
                 <div 
                   key={chunk.id} 
                   style={{ 
-                    background: 'rgba(0, 0, 0, 0.2)', 
-                    border: '1px solid rgba(255, 255, 255, 0.03)', 
+                    background: 'var(--sub-box-bg)', 
+                    border: '1px solid var(--table-border)', 
                     borderRadius: '12px', 
                     padding: '16px',
                     display: 'flex',
@@ -314,7 +314,7 @@ export default function DocumentDetailPage() {
 
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {chunk.page_number && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#8e8e8e', background: 'rgba(255,255,255,0.03)', padding: '2px 8px', borderRadius: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-light)', background: 'var(--card-hover-bg)', padding: '2px 8px', borderRadius: '4px' }}>
                           <MapPin className="w-3 h-3" />
                           Trang {chunk.page_number}
                         </div>
@@ -335,13 +335,13 @@ export default function DocumentDetailPage() {
                   {/* Chunk content preview */}
                   <div style={{ 
                     fontSize: '0.85rem', 
-                    color: '#cbd5e1', 
+                    color: 'var(--text-color)', 
                     lineHeight: '1.6', 
                     whiteSpace: 'pre-wrap',
-                    background: 'rgba(0, 0, 0, 0.2)',
+                    background: 'var(--card-bg)',
                     padding: '12px',
                     borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.02)',
+                    border: '1px solid var(--table-border)',
                     fontFamily: chunk.sheet_name ? 'monospace' : 'inherit'
                   }}>
                     {chunk.content}
@@ -376,7 +376,7 @@ export default function DocumentDetailPage() {
             display: 'flex',
             flexDirection: 'column',
             gap: '20px',
-            background: '#171717'
+            background: 'var(--modal-bg)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div style={{
@@ -392,13 +392,13 @@ export default function DocumentDetailPage() {
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#818cf8' }}>
                   Xử lý lại tài liệu
                 </h3>
-                <span style={{ fontSize: '0.85rem', color: '#8e8e8e' }}>Tạo phiên bản mới cho tài liệu này</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>Tạo phiên bản mới cho tài liệu này</span>
               </div>
             </div>
 
-            <div style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', background: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+            <div style={{ color: 'var(--text-color)', fontSize: '0.95rem', lineHeight: '1.6', background: 'var(--sub-box-bg)', padding: '16px', borderRadius: '12px', border: '1px solid var(--table-border)' }}>
               Bạn có chắc chắn muốn xử lý lại tài liệu <strong style={{ color: '#10b981' }}>"{documentToReprocess.fileName}"</strong> không? 
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: '#8e8e8e' }}>
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: 'var(--text-light)' }}>
                 <div>• Tạo phiên bản mới (`DocumentVersion`) chạy ngầm.</div>
                 <div>• Chạy lại toàn bộ pipeline trích xuất tri thức (RAG).</div>
                 <div>• Tự động kích hoạt khi thành công, giữ nguyên bản cũ nếu lỗi.</div>
