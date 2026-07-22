@@ -21,6 +21,8 @@ services:
       - "7687:7687" # Bolt protocol
     environment:
       - NEO4J_AUTH=neo4j/password
+    stop_grace_period: 30s
+    entrypoint: ["tini", "-g", "--", "bash", "-c", "rm -f /var/lib/neo4j/run/neo4j.pid /data/dbms/neo4j.pid && exec /startup/docker-entrypoint.sh neo4j"]
     volumes:
       - neo4jdata:/data
 
