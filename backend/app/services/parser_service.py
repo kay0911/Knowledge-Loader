@@ -39,10 +39,9 @@ class ParserService:
         results = []
         try:
             doc = docx.Document(file_path)
-            current_heading = "Introduction"
+            current_heading = "Tổng quan"
+            section_paragraphs = []
             
-            # Simple parsing: group paragraphs under headings
-            # To keep chunking working nicely, we emit paragraph contents and tag them with current_heading
             for para in doc.paragraphs:
                 text = para.text.strip()
                 if not text:
@@ -50,25 +49,30 @@ class ParserService:
                 
                 # Check style name for Heading
                 if para.style.name.startswith("Heading") or para.style.name.startswith("heading"):
+                    if section_paragraphs:
+                        results.append({
+                            "page_number": None,
+                            "heading": current_heading,
+                            "sheet_name": None,
+                            "row_start": None,
+                            "row_end": None,
+                            "content": "\n\n".join(section_paragraphs)
+                        })
+                        section_paragraphs = []
                     current_heading = text
-                    # We can also emit the heading itself
-                    results.append({
-                        "page_number": None,
-                        "heading": current_heading,
-                        "sheet_name": None,
-                        "row_start": None,
-                        "row_end": None,
-                        "content": f"# {text}"
-                    })
+                    section_paragraphs.append(f"# {text}")
                 else:
-                    results.append({
-                        "page_number": None,
-                        "heading": current_heading,
-                        "sheet_name": None,
-                        "row_start": None,
-                        "row_end": None,
-                        "content": text
-                    })
+                    section_paragraphs.append(text)
+                    
+            if section_paragraphs:
+                results.append({
+                    "page_number": None,
+                    "heading": current_heading,
+                    "sheet_name": None,
+                    "row_start": None,
+                    "row_end": None,
+                    "content": "\n\n".join(section_paragraphs)
+                })
         except Exception as e:
             logger.error(f"Error parsing DOCX {file_path}: {str(e)}")
             raise e
