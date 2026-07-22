@@ -95,9 +95,12 @@ function AppContent() {
       <aside className={`chatgpt-sidebar ${sidebarOpen ? '' : 'closed'}`} style={{ 
         width: sidebarOpen ? '260px' : '0px', 
         minWidth: sidebarOpen ? '260px' : '0px', 
-        overflowX: 'hidden'
+        maxWidth: sidebarOpen ? '260px' : '0px',
+        flexShrink: 0,
+        boxSizing: 'border-box',
+        overflow: 'hidden'
       }}>
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '12px', width: '236px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '12px', width: '260px', maxWidth: '260px', boxSizing: 'border-box', overflowX: 'hidden' }}>
           
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '0 4px' }}>
@@ -182,20 +185,20 @@ function AppContent() {
           </div>
 
           {/* Recent Chats Section */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', gap: '4px', minHeight: 0 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', gap: '4px', minHeight: 0, width: '100%', boxSizing: 'border-box' }}>
             <div style={{ 
               fontSize: '0.75rem', 
               fontWeight: 600, 
-              color: '#8e8e8e', 
+              color: 'var(--text-light)', 
               padding: '0 8px 8px 8px', 
-              borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
+              borderBottom: '1px solid var(--sidebar-border)', 
               marginBottom: '8px' 
             }}>
               Lịch sử đối thoại
             </div>
             
             {chatHistory.length === 0 ? (
-              <div style={{ padding: '16px 8px', fontSize: '0.8rem', color: '#666', textAlign: 'center' }}>
+              <div style={{ padding: '16px 8px', fontSize: '0.8rem', color: 'var(--text-light)', textAlign: 'center' }}>
                 Chưa có đoạn chat nào
               </div>
             ) : (
@@ -217,7 +220,9 @@ function AppContent() {
                         fontSize: '0.85rem',
                         display: 'block',
                         padding: '10px 12px',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        maxWidth: '100%',
+                        boxSizing: 'border-box'
                       }}
                       title={chat.question}
                     >

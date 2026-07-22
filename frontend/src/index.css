@@ -116,23 +116,16 @@ body {
   100% { background-position: 0% 50%; }
 }
 
-/* Custom scrollbars */
+/* Custom scrollbars - Hidden for clean, modern aesthetics */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
-::-webkit-scrollbar-track {
-  background: #0b0f19;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #1f293d;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #6366f1;
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 /* Status badge styles */
@@ -229,7 +222,9 @@ body {
   flex-direction: column;
   height: 100vh;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: hidden;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .chatgpt-main {
