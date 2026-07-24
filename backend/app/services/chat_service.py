@@ -145,7 +145,7 @@ class ChatService:
         for idx in sorted(cited_nums):
             if 0 <= idx < len(chunks):
                 chunk = chunks[idx]
-                snippet = chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
+                snippet = chunk.content
                 citations.append({
                     "source_id": f"S{idx+1}",
                     "document_id": str(chunk.document_id),
@@ -166,7 +166,7 @@ class ChatService:
                 # Add top 3 chunks as general references
                 for i in range(min(3, len(chunks))):
                     chunk = chunks[i]
-                    snippet = chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
+                    snippet = chunk.content
                     citations.append({
                         "source_id": f"S{i+1}",
                         "document_id": str(chunk.document_id),
@@ -270,7 +270,7 @@ class ChatService:
         for idx in sorted(cited_nums):
             if 0 <= idx < len(chunks):
                 chunk = chunks[idx]
-                snippet = chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
+                snippet = chunk.content
                 citations.append({
                     "source_id": f"S{idx+1}",
                     "document_id": str(chunk.document_id),

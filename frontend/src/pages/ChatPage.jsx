@@ -19,6 +19,11 @@ function ChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState(sessionIdParam || null);
   const [historyMode, setHistoryMode] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isSnippetExpanded, setIsSnippetExpanded] = useState(false);
+
+  useEffect(() => {
+    setIsSnippetExpanded(false);
+  }, [activeCitation]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -596,7 +601,29 @@ function ChatPage() {
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '150px' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Nội dung đoạn trích</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: 600 }}>Nội dung đoạn trích</div>
+                  {activeCitation.snippet && activeCitation.snippet.length > 220 && (
+                    <button
+                      onClick={() => setIsSnippetExpanded(!isSnippetExpanded)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#818cf8',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: '0 4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px'
+                      }}
+                    >
+                      {isSnippetExpanded ? 'Thu gọn ▲' : 'Xem thêm ▼'}
+                    </button>
+                  )}
+                </div>
+
                 <div style={{
                   flex: 1,
                   fontSize: '0.825rem',
@@ -607,10 +634,35 @@ function ChatPage() {
                   borderRadius: '12px',
                   border: '1px solid var(--sidebar-border)',
                   whiteSpace: 'pre-wrap',
-                  overflowY: 'auto'
+                  overflowY: 'auto',
+                  maxHeight: isSnippetExpanded ? '400px' : '180px',
+                  transition: 'max-height 0.3s ease'
                 }}>
-                  "{activeCitation.snippet}"
+                  "{!isSnippetExpanded && activeCitation.snippet && activeCitation.snippet.length > 220
+                    ? activeCitation.snippet.substring(0, 220) + "..."
+                    : activeCitation.snippet}"
                 </div>
+
+                {activeCitation.snippet && activeCitation.snippet.length > 220 && (
+                  <button
+                    onClick={() => setIsSnippetExpanded(!isSnippetExpanded)}
+                    style={{
+                      background: 'rgba(99, 102, 241, 0.1)',
+                      border: '1px solid rgba(99, 102, 241, 0.2)',
+                      color: '#818cf8',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '8px',
+                      borderRadius: '8px',
+                      marginTop: '8px',
+                      textAlign: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {isSnippetExpanded ? 'Thu gọn nội dung ▲' : 'Xem thêm toàn bộ nội dung ▼'}
+                  </button>
+                )}
               </div>
 
               {isMobile && (
