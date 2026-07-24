@@ -92,6 +92,23 @@ function AppContent() {
     window.dispatchEvent(new Event('new-chat-triggered'));
   };
 
+  const handleDeleteSession = async (sessionId, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm("Bạn có chắc chắn muốn xóa đoạn đối thoại này khỏi lịch sử không?")) return;
+    
+    try {
+      await axios.delete(`${API_BASE_URL}/chat/session/${sessionId}`);
+      setChatHistory(prev => prev.filter(item => item.session_id !== sessionId));
+      if (location.search.includes(`session_id=${sessionId}`)) {
+        navigate('/chat');
+        window.dispatchEvent(new Event('new-chat-triggered'));
+      }
+    } catch (err) {
+      console.error("Delete chat session error:", err);
+      alert("Không thể xóa đoạn đối thoại này.");
+    }
+  };
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--main-bg)', color: 'var(--text-color)', position: 'relative' }}>
       
@@ -223,19 +240,57 @@ function AppContent() {
                       }}
                       className={`chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
                       style={{ 
-                        whiteSpace: 'nowrap', 
-                        overflow: 'hidden', 
-                        textOverflow: 'ellipsis',
                         fontSize: '0.85rem',
-                        display: 'block',
-                        padding: '10px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 10px',
                         flexShrink: 0,
                         maxWidth: '100%',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        gap: '6px'
                       }}
                       title={chat.question}
                     >
-                      {chat.question}
+                      <span style={{ 
+                        flex: 1, 
+                        whiteSpace: 'nowrap', 
+                        overflow: 'hidden', 
+                        textOverflow: 'ellipsis' 
+                      }}>
+                        {chat.question}
+                      </span>
+                      
+                      <button
+                        onClick={(e) => handleDeleteSession(chat.session_id, e)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-light)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '4px',
+                          transition: 'all 0.2s',
+                          opacity: 0.7,
+                          flexShrink: 0
+                        }}
+                        title="Xóa đoạn chat này"
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = '#ef4444';
+                          e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                          e.currentTarget.style.opacity = '1';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = 'var(--text-light)';
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.opacity = '0.7';
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   );
                 })}

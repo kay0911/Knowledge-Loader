@@ -174,3 +174,18 @@ def ask_question_stream(payload: ChatRequest, db: Session = Depends(get_db)):
         media_type="text/event-stream"
     )
 
+
+@router.delete("/session/{session_id}")
+def delete_chat_session(session_id: UUID, db: Session = Depends(get_db)):
+    """
+    Delete all chat logs associated with a session ID.
+    """
+    deleted_count = db.query(ChatLog).filter(ChatLog.session_id == str(session_id)).delete(synchronize_session=False)
+    db.commit()
+    if deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found or already deleted"
+        )
+    return {"message": "Session deleted successfully", "deleted_count": deleted_count}
+
