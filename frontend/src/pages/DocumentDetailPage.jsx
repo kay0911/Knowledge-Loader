@@ -18,15 +18,23 @@ export default function DocumentDetailPage() {
   const [documentToReprocess, setDocumentToReprocess] = useState(null);
   const [reprocessing, setReprocessing] = useState(false);
   const [activatingVersionId, setActivatingVersionId] = useState(null);
+  const [notification, setNotification] = useState(null);
 
-  const handleActivateVersion = async (versionId) => {
+  const handleActivateVersion = async (versionId, versionNumber) => {
     try {
       setActivatingVersionId(versionId);
       await axios.post(`${API_BASE_URL}/documents/${id}/versions/${versionId}/activate`);
       await fetchDetails(false);
+      setNotification({
+        type: 'success',
+        text: `Đã kích hoạt thành công Version ${versionNumber}! Dữ liệu Search & Graph RAG đã được cập nhật.`
+      });
+      setTimeout(() => setNotification(null), 4000);
     } catch (err) {
       console.error("Activate version error:", err);
-      alert(err.response?.data?.detail || "Không thể kích hoạt phiên bản.");
+      const errMsg = err.response?.data?.detail || "Không thể kích hoạt phiên bản.";
+      setNotification({ type: 'error', text: errMsg });
+      setTimeout(() => setNotification(null), 4000);
     } finally {
       setActivatingVersionId(null);
     }
@@ -129,6 +137,30 @@ export default function DocumentDetailPage() {
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '24px' }} className="fade-in">
       
+      {/* Toast Notification Popup */}
+      {notification && (
+        <div style={{
+          position: 'fixed',
+          top: '24px',
+          right: '24px',
+          zIndex: 9999,
+          background: notification.type === 'success' ? '#10b981' : '#ef4444',
+          color: '#ffffff',
+          padding: '14px 22px',
+          borderRadius: '12px',
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontSize: '0.9rem',
+          fontWeight: 600,
+          transition: 'all 0.3s ease'
+        }}>
+          {notification.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+          <span>{notification.text}</span>
+        </div>
+      )}
+
       {/* Back button */}
       <button 
         onClick={() => navigate('/')} 
@@ -278,7 +310,7 @@ export default function DocumentDetailPage() {
                     </span>
                   ) : ver.status === 'READY' && (
                     <button
-                      onClick={() => handleActivateVersion(ver.id)}
+                      onClick={() => handleActivateVersion(ver.id, ver.version_number)}
                       disabled={activatingVersionId === ver.id}
                       style={{
                         position: 'absolute',
