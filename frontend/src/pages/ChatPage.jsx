@@ -164,6 +164,7 @@ function ChatPage() {
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setLoading(false);
+      window.dispatchEvent(new Event('chat-history-updated'));
     }
   };
 

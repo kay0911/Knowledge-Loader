@@ -71,8 +71,17 @@ function AppContent() {
 
   useEffect(() => {
     fetchChatHistory();
-    const interval = setInterval(fetchChatHistory, 5000);
-    return () => clearInterval(interval);
+    
+    // Listen to custom event when a chat session is created or updated
+    const handleHistoryUpdate = () => fetchChatHistory();
+    window.addEventListener('chat-history-updated', handleHistoryUpdate);
+
+    // Light fallback sync every 60 seconds (instead of 5 seconds) to reduce server load
+    const interval = setInterval(fetchChatHistory, 60000);
+    return () => {
+      window.removeEventListener('chat-history-updated', handleHistoryUpdate);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleNewChat = () => {
