@@ -17,6 +17,20 @@ export default function DocumentDetailPage() {
   const [error, setError] = useState(null);
   const [documentToReprocess, setDocumentToReprocess] = useState(null);
   const [reprocessing, setReprocessing] = useState(false);
+  const [activatingVersionId, setActivatingVersionId] = useState(null);
+
+  const handleActivateVersion = async (versionId) => {
+    try {
+      setActivatingVersionId(versionId);
+      await axios.post(`${API_BASE_URL}/documents/${id}/versions/${versionId}/activate`);
+      await fetchDetails(false);
+    } catch (err) {
+      console.error("Activate version error:", err);
+      alert(err.response?.data?.detail || "Không thể kích hoạt phiên bản.");
+    } finally {
+      setActivatingVersionId(null);
+    }
+  };
 
   const fetchDetails = async (showLoading = false) => {
     if (showLoading) setLoading(true);
@@ -247,7 +261,7 @@ export default function DocumentDetailPage() {
                     position: 'relative'
                   }}
                 >
-                  {ver.is_active && (
+                  {ver.is_active ? (
                     <span style={{ 
                       position: 'absolute', 
                       top: '12px', 
@@ -262,6 +276,36 @@ export default function DocumentDetailPage() {
                     }}>
                       Active
                     </span>
+                  ) : ver.status === 'READY' && (
+                    <button
+                      onClick={() => handleActivateVersion(ver.id)}
+                      disabled={activatingVersionId === ver.id}
+                      style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '12px',
+                        background: 'rgba(99, 102, 241, 0.15)',
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        color: '#818cf8',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        cursor: activatingVersionId === ver.id ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Kích hoạt phiên bản này cho RAG & Vector Search"
+                    >
+                      {activatingVersionId === ver.id ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-3 h-3" />
+                      )}
+                      Kích hoạt
+                    </button>
                   )}
                   
                   <div style={{ fontWeight: 600, fontSize: '0.9rem', color: ver.is_active ? '#34d399' : 'var(--text-color)' }}>

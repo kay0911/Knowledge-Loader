@@ -230,4 +230,54 @@ class DocumentService:
         logger.info(f"Triggered reprocessing for document {doc.original_file_name}. New version: v{new_version_num}. Created job ID: {job.id}")
         return doc
 
+    @staticmethod
+    def activate_version(db: Session, document_id: str, version_id: str) -> Document:
+        doc = db.query(Document).filter(Document.id == document_id, Document.status != "DELETED").first()
+        if not doc:
+            raise ValueError("Document not found or has been deleted.")
+            
+        target_version = db.query(DocumentVersion).filter(
+            DocumentVersion.id == version_id,
+            DocumentVersion.document_id == document_id
+        ).first()
+        
+        if not target_version:
+            raise ValueError("Document version not found.")
+            
+        if target_version.status != "READY":
+            raise ValueError("Only versions with status READY can be activated.")
+            
+        # 1. Update doc active_version_id
+        doc.active_version_id = target_version.id
+        doc.status = "READY"
+        
+        # 2. Deactivate all versions of this document, activate target_version
+        db.query(DocumentVersion).filter(
+            DocumentVersion.document_id == document_id
+        ).update({"is_active": False})
+        target_version.is_active = True
+        
+        # 3. Deactivate all chunks of this document, activate target_version chunks
+        db.query(DocumentChunk).filter(
+            DocumentChunk.document_id == document_id
+        ).update({"is_active": False})
+        
+        db.query(DocumentChunk).filter(
+            DocumentChunk.document_version_id == target_version.id
+        ).update({"is_active": True})
+        
+        db.commit()
+        db.refresh(doc)
+        logger.info(f"Activated version v{target_version.version_number} (ID: {version_id}) for document {doc.original_file_name}")
+        
+        # 4. Rebuild BM25 index to reflect new active chunks
+        try:
+            from app.services.bm25_service import BM25Service
+            BM25Service.rebuild_index()
+        except Exception as bm_err:
+            logger.error(f"Failed to rebuild BM25 index after activating version: {str(bm_err)}")
+            
+        return doc
+
+
 

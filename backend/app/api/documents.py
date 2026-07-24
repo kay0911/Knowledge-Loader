@@ -139,4 +139,31 @@ def reprocess_document(document_id: str, db: Session = Depends(get_db)):
         logger.error(f"Failed to reprocess document {document_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to reprocess document: {str(e)}")
 
+@router.post("/{document_id}/versions/{version_id}/activate", response_model=DocumentDetailResponse)
+def activate_document_version(document_id: str, version_id: str, db: Session = Depends(get_db)):
+    try:
+        doc = DocumentService.activate_version(db, document_id, version_id)
+        
+        version_ids = [doc.active_version_id] if doc.active_version_id else []
+        chunk_counts = {}
+        if version_ids:
+            from sqlalchemy import func
+            counts_res = db.query(
+                DocumentChunk.document_version_id,
+                func.count(DocumentChunk.id)
+            ).filter(
+                DocumentChunk.document_version_id.in_(version_ids)
+            ).group_by(
+                DocumentChunk.document_version_id
+            ).all()
+            chunk_counts = {r[0]: r[1] for r in counts_res}
+            
+        return map_to_detail(doc, chunk_counts)
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as e:
+        logger.error(f"Failed to activate version {version_id} for doc {document_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to activate version: {str(e)}")
+
+
 
