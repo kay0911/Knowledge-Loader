@@ -72,6 +72,56 @@ def get_chat_history(db: Session = Depends(get_db), limit: int = 50):
     return logs
 
 
+def hydrate_chat_log_citations(db: Session, logs: List[ChatLog]):
+    """
+    For old or existing chat logs, if citations contain truncated snippets (ending with '...'),
+    look up original DocumentChunk records using retrieved_chunk_ids and restore full content.
+    """
+    if not logs:
+        return
+    
+    all_chunk_ids = []
+    for log in logs:
+        if log.retrieved_chunk_ids and isinstance(log.retrieved_chunk_ids, list):
+            all_chunk_ids.extend(log.retrieved_chunk_ids)
+            
+    if not all_chunk_ids:
+        return
+        
+    from app.models.document import DocumentChunk
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        chunks = db.query(DocumentChunk).filter(DocumentChunk.id.in_(all_chunk_ids)).all()
+        chunk_map = {str(c.id): c.content for c in chunks}
+    except Exception as e:
+        logger.warning(f"Failed to fetch chunk map for citations: {e}")
+        chunk_map = {}
+        
+    for log in logs:
+        if not log.citations or not isinstance(log.citations, list):
+            continue
+            
+        updated_citations = []
+        for i, citation in enumerate(log.citations):
+            cit = dict(citation)
+            snippet = cit.get("snippet", "")
+            if snippet.endswith("...") or len(snippet) <= 220:
+                chunk_id = cit.get("chunk_id")
+                full_content = None
+                if chunk_id and chunk_id in chunk_map:
+                    full_content = chunk_map[chunk_id]
+                elif log.retrieved_chunk_ids and i < len(log.retrieved_chunk_ids):
+                    cid = log.retrieved_chunk_ids[i]
+                    if cid in chunk_map:
+                        full_content = chunk_map[cid]
+                
+                if full_content:
+                    cit["snippet"] = full_content
+            updated_citations.append(cit)
+        log.citations = updated_citations
+
+
 @router.get("/session/{session_id}", response_model=List[ChatLogResponse])
 def get_session_messages(session_id: UUID, db: Session = Depends(get_db)):
     """
@@ -88,6 +138,7 @@ def get_session_messages(session_id: UUID, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chat session not found"
         )
+    hydrate_chat_log_citations(db, logs)
     return logs
 
 
@@ -102,6 +153,7 @@ def get_chat_detail(chat_id: UUID, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chat log not found"
         )
+    hydrate_chat_log_citations(db, [log])
     return log
 
 
