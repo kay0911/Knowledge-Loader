@@ -603,7 +603,7 @@ function ChatPage() {
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '150px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: 600 }}>Nội dung đoạn trích</div>
-                  {activeCitation.snippet && activeCitation.snippet.length > 220 && (
+                  {activeCitation.snippet && (activeCitation.snippet.length > 120 || activeCitation.snippet.endsWith('...')) && (
                     <button
                       onClick={() => setIsSnippetExpanded(!isSnippetExpanded)}
                       style={{
@@ -635,29 +635,33 @@ function ChatPage() {
                   border: '1px solid var(--sidebar-border)',
                   whiteSpace: 'pre-wrap',
                   overflowY: 'auto',
-                  maxHeight: isSnippetExpanded ? '400px' : '180px',
+                  maxHeight: isSnippetExpanded ? '450px' : '160px',
                   transition: 'max-height 0.3s ease'
                 }}>
-                  "{!isSnippetExpanded && activeCitation.snippet && activeCitation.snippet.length > 220
-                    ? activeCitation.snippet.substring(0, 220) + "..."
+                  "{!isSnippetExpanded && activeCitation.snippet && activeCitation.snippet.length > 120
+                    ? activeCitation.snippet.substring(0, 120) + "..."
                     : activeCitation.snippet}"
                 </div>
 
-                {activeCitation.snippet && activeCitation.snippet.length > 220 && (
+                {activeCitation.snippet && (activeCitation.snippet.length > 120 || activeCitation.snippet.endsWith('...')) && (
                   <button
                     onClick={() => setIsSnippetExpanded(!isSnippetExpanded)}
                     style={{
-                      background: 'rgba(99, 102, 241, 0.1)',
-                      border: '1px solid rgba(99, 102, 241, 0.2)',
+                      background: 'rgba(99, 102, 241, 0.12)',
+                      border: '1px solid rgba(99, 102, 241, 0.25)',
                       color: '#818cf8',
                       fontSize: '0.8rem',
                       fontWeight: 600,
                       cursor: 'pointer',
-                      padding: '8px',
+                      padding: '8px 12px',
                       borderRadius: '8px',
                       marginTop: '8px',
                       textAlign: 'center',
-                      transition: 'all 0.2s'
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
                     }}
                   >
                     {isSnippetExpanded ? 'Thu gọn nội dung ▲' : 'Xem thêm toàn bộ nội dung ▼'}
