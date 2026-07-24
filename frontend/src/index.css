@@ -116,6 +116,16 @@ body {
   100% { background-position: 0% 50%; }
 }
 
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* Custom scrollbars - Hidden for clean, modern aesthetics */
 ::-webkit-scrollbar {
   display: none;

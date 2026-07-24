@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Send, BookOpen, Clock, AlertTriangle, Layers, 
-  Database, HelpCircle, ArrowRight, Sparkles, Plus, ArrowUp, RefreshCw
+  Database, HelpCircle, ArrowRight, Sparkles, Plus, ArrowUp, RefreshCw, X
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -18,6 +18,13 @@ function ChatPage() {
   const [activeCitation, setActiveCitation] = useState(null);
   const [currentSessionId, setCurrentSessionId] = useState(sessionIdParam || null);
   const [historyMode, setHistoryMode] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   const messagesEndRef = useRef(null);
 
@@ -490,88 +497,142 @@ function ChatPage() {
 
       </div>
 
-      {/* Citations Side Drawer (Collapsible right panel) */}
+      {/* Citations Side Drawer (Collapsible right panel on desktop, bottom sheet on mobile) */}
       {activeCitation && (
-        <div className="glass-panel" style={{
-          width: '320px',
-          padding: '24px',
-          borderLeft: '1px solid var(--sidebar-border)',
-          background: 'var(--panel-bg)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px',
-          height: '100%',
-          position: 'relative',
-          animation: 'fadeIn 0.2s ease-out',
-          zIndex: 20
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-color)' }}>
-              Trích dẫn [{activeCitation.source_id}]
-            </h4>
-            <button
-              onClick={() => setActiveCitation(null)}
+        <>
+          {/* Backdrop for mobile */}
+          {isMobile && (
+            <div 
               style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-light)',
-                fontSize: '1.1rem',
-                cursor: 'pointer',
-                padding: '4px'
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                backdropFilter: 'blur(4px)',
+                zIndex: 99,
+                animation: 'fadeIn 0.2s ease'
               }}
-            >
-              ✕
-            </button>
-          </div>
-          
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '4px' }}>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Tài liệu nguồn</div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-color)' }}>{activeCitation.file_name}</div>
+              onClick={() => setActiveCitation(null)}
+            />
+          )}
+
+          <div className="glass-panel" style={{
+            position: isMobile ? 'fixed' : 'relative',
+            bottom: isMobile ? 0 : 'auto',
+            left: isMobile ? 0 : 'auto',
+            right: isMobile ? 0 : 'auto',
+            top: isMobile ? 'auto' : 0,
+            maxHeight: isMobile ? '85vh' : '100%',
+            height: isMobile ? 'auto' : '100%',
+            width: isMobile ? '100%' : '320px',
+            padding: '20px 24px',
+            borderLeft: isMobile ? 'none' : '1px solid var(--sidebar-border)',
+            borderTop: isMobile ? '1px solid var(--sidebar-border)' : 'none',
+            borderTopLeftRadius: isMobile ? '20px' : '0',
+            borderTopRightRadius: isMobile ? '20px' : '0',
+            background: 'var(--panel-bg)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            boxShadow: isMobile ? '0 -10px 40px rgba(0, 0, 0, 0.5)' : 'none',
+            animation: isMobile ? 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' : 'fadeIn 0.2s ease-out',
+            zIndex: 100,
+            boxSizing: 'border-box'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-color)' }}>
+                Trích dẫn [{activeCitation.source_id}]
+              </h4>
+              <button
+                onClick={() => setActiveCitation(null)}
+                style={{
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--sidebar-border)',
+                  color: 'var(--text-color)',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                title="Đóng trích dẫn"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-
-            {activeCitation.page_number && (
+            
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '4px' }}>
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Trang số</div>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-color)' }}>Trang {activeCitation.page_number}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Tài liệu nguồn</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-color)' }}>{activeCitation.file_name}</div>
               </div>
-            )}
 
-            {activeCitation.heading && (
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Mục tiêu đề</div>
-                <div style={{ fontSize: '0.85rem', color: '#a5b4fc', fontFamily: 'monospace', background: 'rgba(99, 102, 241, 0.1)', padding: '4px 8px', borderRadius: '4px', display: 'inline-block' }}>{activeCitation.heading}</div>
-              </div>
-            )}
+              {activeCitation.page_number && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight 600 }}>Trang số</div>
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-color)' }}>Trang {activeCitation.page_number}</div>
+                </div>
+              )}
 
-            {activeCitation.sheet_name && (
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Bảng tính Excel</div>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-color)' }}>
-                  Sheet: <strong>{activeCitation.sheet_name}</strong> (Dòng {activeCitation.row_start} - {activeCitation.row_end})
+              {activeCitation.heading && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight 600 }}>Mục tiêu đề</div>
+                  <div style={{ fontSize: '0.85rem', color: '#a5b4fc', fontFamily: 'monospace', background: 'rgba(99, 102, 241, 0.1)', padding: '4px 8px', borderRadius: '4px', display: 'inline-block' }}>{activeCitation.heading}</div>
+                </div>
+              )}
+
+              {activeCitation.sheet_name && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight 600 }}>Bảng tính Excel</div>
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-color)' }}>
+                    Sheet: <strong>{activeCitation.sheet_name}</strong> (Dòng {activeCitation.row_start} - {activeCitation.row_end})
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '150px' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '6px', textTransform: 'uppercase', fontWeight 600 }}>Nội dung đoạn trích</div>
+                <div style={{
+                  flex: 1,
+                  fontSize: '0.825rem',
+                  lineHeight: '1.6',
+                  color: 'var(--text-color)',
+                  background: 'var(--input-bg)',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: '1px solid var(--sidebar-border)',
+                  whiteSpace: 'pre-wrap',
+                  overflowY: 'auto'
+                }}>
+                  "{activeCitation.snippet}"
                 </div>
               </div>
-            )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '150px' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Nội dung đoạn trích</div>
-              <div style={{
-                flex: 1,
-                fontSize: '0.825rem',
-                lineHeight: '1.6',
-                color: 'var(--text-color)',
-                background: 'var(--input-bg)',
-                padding: '16px',
-                borderRadius: '12px',
-                border: '1px solid var(--sidebar-border)',
-                whiteSpace: 'pre-wrap',
-                overflowY: 'auto'
-              }}>
-                "{activeCitation.snippet}"
-              </div>
+              {isMobile && (
+                <button
+                  onClick={() => setActiveCitation(null)}
+                  className="btn-secondary"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    marginTop: '8px',
+                    textAlign: 'center'
+                  }}
+                >
+                  Đóng trích dẫn
+                </button>
+              )}
             </div>
           </div>
-        </div>
+        </>
       )}
       
     </div>
