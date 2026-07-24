@@ -234,30 +234,42 @@ class ChatService:
             
         context_str = "\n---\n".join(context_blocks)
         
-        # 3. Call Gemini LLM in stream mode
+        # 3. Call Gemini LLM in stream mode (or Mock for benchmark)
         answer = ""
-        try:
-            model = genai.GenerativeModel(model_name=settings.GEMINI_LLM_MODEL)
-            if history_str:
-                question_with_history = f"(Lịch sử hội thoại để tham khảo:\n{history_str})\n\nCâu hỏi hiện tại cần trả lời: {question}"
-            else:
-                question_with_history = question
-            prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question_with_history)
-            
-            logger.info("Calling Gemini LLM for streaming Q&A...")
-            response = model.generate_content(prompt, stream=True)
-            
-            for chunk in response:
-                chunk_text = chunk.text
-                answer += chunk_text
-                # Yield content chunk in SSE format
-                yield f"data: {json.dumps({'type': 'content', 'content': chunk_text}, ensure_ascii=False)}\n\n"
+        if settings.MOCK_AI_SERVICES:
+            mock_tokens = [
+                "Theo tài liệu trích dẫn ",
+                "[S1]",
+                ", hệ thống GraphRAG đã xử lý thông tin từ cơ sở dữ liệu:\n\n",
+                "1. Đây là câu trả lời thử nghiệm tải (Mock Performance Test).\n",
+                "2. Quá trình Hybrid Vector Search (pgvector) & Graph Search (Neo4j) đã hoạt động chính xác."
+            ]
+            for token in mock_tokens:
+                answer += token
+                yield f"data: {json.dumps({'type': 'content', 'content': token}, ensure_ascii=False)}\n\n"
+        else:
+            try:
+                model = genai.GenerativeModel(model_name=settings.GEMINI_LLM_MODEL)
+                if history_str:
+                    question_with_history = f"(Lịch sử hội thoại để tham khảo:\n{history_str})\n\nCâu hỏi hiện tại cần trả lời: {question}"
+                else:
+                    question_with_history = question
+                prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question_with_history)
                 
-        except Exception as e:
-            logger.error(f"Gemini LLM streaming call failed: {str(e)}", exc_info=True)
-            err_text = "Đã xảy ra lỗi khi gọi trợ lý AI. Vui lòng thử lại sau."
-            answer = err_text
-            yield f"data: {json.dumps({'type': 'content', 'content': err_text}, ensure_ascii=False)}\n\n"
+                logger.info("Calling Gemini LLM for streaming Q&A...")
+                response = model.generate_content(prompt, stream=True)
+                
+                for chunk in response:
+                    chunk_text = chunk.text
+                    answer += chunk_text
+                    # Yield content chunk in SSE format
+                    yield f"data: {json.dumps({'type': 'content', 'content': chunk_text}, ensure_ascii=False)}\n\n"
+                    
+            except Exception as e:
+                logger.error(f"Gemini LLM streaming call failed: {str(e)}", exc_info=True)
+                err_text = "Đã xảy ra lỗi khi gọi trợ lý AI. Vui lòng thử lại sau."
+                answer = err_text
+                yield f"data: {json.dumps({'type': 'content', 'content': err_text}, ensure_ascii=False)}\n\n"
             
         # Calculate latency
         latency_ms = int((time.time() - start_time) * 1000)

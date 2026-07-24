@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     COHERE_RERANK_MODEL: str = os.getenv("COHERE_RERANK_MODEL", "rerank-multilingual-v3.0")
     RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", 8))
 
+    # Mock Mode for Performance Benchmark / Load Testing
+    MOCK_AI_SERVICES: bool = os.getenv("MOCK_AI_SERVICES", "false").lower() in ("true", "1", "yes")
+
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

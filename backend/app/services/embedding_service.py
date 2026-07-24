@@ -18,9 +18,15 @@ class EmbeddingService:
     @classmethod
     def get_embedding(cls, text: str) -> List[float]:
         """
-        Generate embedding for the text using Gemini API.
-        Default model: gemini-embedding-1
+        Generate embedding for the text using Gemini API or Mock vector for benchmark.
         """
+        if settings.MOCK_AI_SERVICES:
+            # Deterministic mock embedding vector for benchmark performance testing
+            import hashlib
+            hash_val = int(hashlib.md5(text.encode('utf-8')).hexdigest(), 16)
+            vec = [(float((hash_val >> (i % 32)) & 0xFF) / 255.0 - 0.5) for i in range(settings.GEMINI_EMBEDDING_DIMENSION)]
+            return vec
+
         cls._configure()
         if not text.strip():
             # Return zero vector if text is empty
