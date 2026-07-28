@@ -29,6 +29,7 @@ def map_to_detail(doc, chunk_counts: dict) -> dict:
         "file_type": doc.file_type,
         "file_hash": doc.file_hash,
         "status": doc.status,
+        "is_enabled": doc.is_enabled,
         "routing_result": doc.routing_result,
         "active_version_id": doc.active_version_id,
         "error_message": doc.error_message,
