@@ -176,16 +176,27 @@ def ask_question_stream(payload: ChatRequest, db: Session = Depends(get_db)):
 
 
 @router.delete("/session/{session_id}")
-def delete_chat_session(session_id: UUID, db: Session = Depends(get_db)):
+def delete_chat_session(session_id: str, db: Session = Depends(get_db)):
     """
     Delete all chat logs associated with a session ID.
     """
-    deleted_count = db.query(ChatLog).filter(ChatLog.session_id == str(session_id)).delete(synchronize_session=False)
-    db.commit()
-    if deleted_count == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Chat session not found or already deleted"
-        )
-    return {"message": "Session deleted successfully", "deleted_count": deleted_count}
+    try:
+        try:
+            target_uuid = UUID(session_id)
+        except (ValueError, AttributeError):
+            target_uuid = None
+
+        if target_uuid:
+            deleted_count = db.query(ChatLog).filter(
+                (ChatLog.session_id == target_uuid) | (ChatLog.session_id == session_id)
+            ).delete(synchronize_session=False)
+        else:
+            deleted_count = db.query(ChatLog).filter(ChatLog.session_id == session_id).delete(synchronize_session=False)
+            
+        db.commit()
+        logger.info(f"Deleted {deleted_count} chat logs for session {session_id}")
+        return {"message": "Session deleted successfully", "deleted_count": deleted_count}
+    except Exception as e:
+        logger.error(f"Failed to delete chat session {session_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete chat session: {str(e)}")
 

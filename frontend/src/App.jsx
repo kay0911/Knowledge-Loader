@@ -93,19 +93,23 @@ function AppContent() {
   };
 
   const handleDeleteSession = async (sessionId, e) => {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    if (!sessionId) return;
     if (!window.confirm("Bạn có chắc chắn muốn xóa đoạn đối thoại này khỏi lịch sử không?")) return;
     
     try {
       await axios.delete(`${API_BASE_URL}/chat/session/${sessionId}`);
-      setChatHistory(prev => prev.filter(item => item.session_id !== sessionId));
+      setChatHistory(prev => prev.filter(item => String(item.session_id) !== String(sessionId)));
       if (location.search.includes(`session_id=${sessionId}`)) {
         navigate('/chat');
         window.dispatchEvent(new Event('new-chat-triggered'));
       }
     } catch (err) {
       console.error("Delete chat session error:", err);
-      alert("Không thể xóa đoạn đối thoại này.");
+      alert(err.response?.data?.detail || "Không thể xóa đoạn đối thoại này.");
     }
   };
 
