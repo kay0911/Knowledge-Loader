@@ -8,7 +8,7 @@ import {
   MessageSquare, Layers, Menu, Plus, ChevronLeft, 
   Trash2, HelpCircle, FileText, CheckCircle2,
   AlertTriangle, Clock, RefreshCw, Sparkles, FolderKanban,
-  Sun, Moon
+  Sun, Moon, Check, X
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -18,6 +18,7 @@ function AppContent() {
   const [chatHistory, setChatHistory] = useState([]);
   const [historyLimit, setHistoryLimit] = useState(10);
   const [activeLogId, setActiveLogId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
   const navigate = useNavigate();
@@ -98,11 +99,11 @@ function AppContent() {
       e.preventDefault();
     }
     if (!sessionId) return;
-    if (!window.confirm("Bạn có chắc chắn muốn xóa đoạn đối thoại này khỏi lịch sử không?")) return;
     
     try {
       await axios.delete(`${API_BASE_URL}/chat/session/${sessionId}`);
       setChatHistory(prev => prev.filter(item => String(item.session_id) !== String(sessionId)));
+      setConfirmDeleteId(null);
       if (location.search.includes(`session_id=${sessionId}`)) {
         navigate('/chat');
         window.dispatchEvent(new Event('new-chat-triggered'));
@@ -265,36 +266,82 @@ function AppContent() {
                         {chat.question}
                       </span>
                       
-                      <button
-                        onClick={(e) => handleDeleteSession(chat.session_id, e)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-light)',
-                          cursor: 'pointer',
-                          padding: '4px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: '4px',
-                          transition: 'all 0.2s',
-                          opacity: 0.7,
-                          flexShrink: 0
-                        }}
-                        title="Xóa đoạn chat này"
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = '#ef4444';
-                          e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
-                          e.currentTarget.style.opacity = '1';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = 'var(--text-light)';
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                          e.currentTarget.style.opacity = '0.7';
-                        }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {confirmDeleteId === chat.session_id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                          <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 600 }}>Xóa?</span>
+                          <button
+                            onClick={(e) => handleDeleteSession(chat.session_id, e)}
+                            style={{
+                              background: '#ef4444',
+                              border: 'none',
+                              color: '#fff',
+                              cursor: 'pointer',
+                              padding: '2px 4px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            title="Xác nhận xóa"
+                          >
+                            <Check className="w-3.5 h-3.5" style={{ pointerEvents: 'none' }} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeleteId(null);
+                            }}
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.1)',
+                              border: 'none',
+                              color: 'var(--text-light)',
+                              cursor: 'pointer',
+                              padding: '2px 4px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            title="Hủy"
+                          >
+                            <X className="w-3.5 h-3.5" style={{ pointerEvents: 'none' }} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeleteId(chat.session_id);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-light)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '4px',
+                            transition: 'all 0.2s',
+                            opacity: 0.7,
+                            flexShrink: 0
+                          }}
+                          title="Xóa đoạn chat này"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = '#ef4444';
+                            e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                            e.currentTarget.style.opacity = '1';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = 'var(--text-light)';
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.opacity = '0.7';
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" style={{ pointerEvents: 'none' }} />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
