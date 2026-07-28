@@ -65,6 +65,11 @@ class ParserService:
         for line in lines:
             trimmed = line.strip()
 
+            # Filter out decorative horizontal rules (e.g. ---, ***, ___, --------...)
+            if re.match(r"^[\s\-\*_]{3,}$", trimmed):
+                flush_buffer()
+                continue
+
             # Handle Code Blocks ```
             if trimmed.startswith("```"):
                 if in_code_block:

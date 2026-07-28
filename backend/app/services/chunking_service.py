@@ -66,6 +66,8 @@ class ChunkingService:
                 return
 
             full_text = "\n\n".join(current_content_parts).strip()
+            # Clean out decorative divider lines (e.g. ---, ***, --------...)
+            full_text = re.sub(r"(\n[\s\-\*_]{3,}\n|\n[\s\-\*_]{3,}$|^[\s\-\*_]{3,}\n)", "\n", full_text).strip()
             if not full_text:
                 return
 
