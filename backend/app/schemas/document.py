@@ -44,6 +44,7 @@ class DocumentResponse(BaseModel):
     file_type: str
     file_hash: str
     status: str
+    is_enabled: bool = True
     routing_result: Optional[str] = None
     active_version_id: Optional[UUID] = None
     error_message: Optional[str] = None

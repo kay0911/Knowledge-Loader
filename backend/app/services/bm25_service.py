@@ -32,7 +32,8 @@ class BM25Service:
                 Document, Document.id == DocumentChunk.document_id
             ).filter(
                 DocumentChunk.is_active == True,
-                Document.status == "READY"
+                Document.status == "READY",
+                Document.is_enabled == True
             ).all()
             
             if not chunks:

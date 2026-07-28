@@ -35,6 +35,7 @@ class RetrievalService:
             ).filter(
                 DocumentChunk.is_active == True,
                 Document.status == "READY",
+                Document.is_enabled == True,
                 DocumentChunk.embedding.isnot(None)
             ).order_by(
                 DocumentChunk.embedding.cosine_distance(query_embedding)
@@ -68,7 +69,8 @@ class RetrievalService:
                     ).filter(
                         DocumentChunk.id.in_(chunk_ids),
                         DocumentChunk.is_active == True,
-                        Document.status == "READY"
+                        Document.status == "READY",
+                        Document.is_enabled == True
                     ).all()
                     logger.info(f"Graph retrieval resolved {len(graph_chunks)} chunks from Neo4j evidence.")
         except Exception as e:

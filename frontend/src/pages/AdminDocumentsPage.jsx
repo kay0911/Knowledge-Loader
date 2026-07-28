@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   UploadCloud, FileText, RefreshCw, AlertTriangle, 
-  CheckCircle2, Clock, PlayCircle, Layers, HelpCircle, ArrowRight, Trash2
+  CheckCircle2, Clock, PlayCircle, Layers, HelpCircle, ArrowRight, Trash2, Power
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -20,6 +20,16 @@ export default function AdminDocumentsPage() {
   const [reprocessing, setReprocessing] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
+
+  const handleToggleEnablement = async (docId) => {
+    try {
+      await axios.post(`${API_BASE_URL}/documents/${docId}/toggle`);
+      fetchDocuments();
+    } catch (err) {
+      console.error("Toggle error:", err);
+      alert(err.response?.data?.detail || "Không thể thay đổi trạng thái RAG của tài liệu.");
+    }
+  };
 
   const fetchDocuments = async (showLoading = false) => {
     if (showLoading) setRefreshing(true);
@@ -352,10 +362,26 @@ export default function AdminDocumentsPage() {
 
                     {/* Status badge */}
                     <td style={{ padding: '16px' }}>
-                      <span className={`badge ${getStatusBadgeClass(doc.status)}`}>
-                        {getStatusIcon(doc.status)}
-                        {doc.status}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className={`badge ${getStatusBadgeClass(doc.status)}`}>
+                          {getStatusIcon(doc.status)}
+                          {doc.status}
+                        </span>
+                        {doc.is_enabled === false && (
+                          <span style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            color: '#94a3b8',
+                            background: 'rgba(148, 163, 184, 0.15)',
+                            border: '1px solid rgba(148, 163, 184, 0.3)',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase'
+                          }}>
+                            Tắt RAG
+                          </span>
+                        )}
+                      </div>
                       {doc.error_message && (
                         <div style={{ fontSize: '0.7rem', color: '#f87171', marginTop: '4px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.error_message}>
                           {doc.error_message}
@@ -371,6 +397,28 @@ export default function AdminDocumentsPage() {
                     {/* Action buttons */}
                     <td style={{ padding: '16px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button 
+                          onClick={() => handleToggleEnablement(doc.id)}
+                          className="btn-secondary" 
+                          style={{ 
+                            padding: '6px 12px', 
+                            fontSize: '0.75rem', 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            background: doc.is_enabled !== false ? 'rgba(16, 185, 129, 0.1)' : 'rgba(148, 163, 184, 0.1)',
+                            border: doc.is_enabled !== false ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(148, 163, 184, 0.25)',
+                            color: doc.is_enabled !== false ? '#34d399' : '#94a3b8',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          title={doc.is_enabled !== false ? "Bấm để TẮT RAG (tạm ngưng cho AI hỏi tệp này)" : "Bấm để BẬT RAG (cho phép AI trả lời từ tệp này)"}
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                          {doc.is_enabled !== false ? "Bật RAG" : "Tắt RAG"}
+                        </button>
+
                         <button 
                           onClick={() => navigate(`/documents/${doc.id}`)}
                           className="btn-secondary" 

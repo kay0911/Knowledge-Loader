@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   ArrowLeft, FileText, Calendar, CheckCircle2, RefreshCw, 
-  AlertTriangle, Clock, Layers, Hash, BookOpen, MapPin
+  AlertTriangle, Clock, Layers, Hash, BookOpen, MapPin, Power
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -19,6 +19,24 @@ export default function DocumentDetailPage() {
   const [reprocessing, setReprocessing] = useState(false);
   const [activatingVersionId, setActivatingVersionId] = useState(null);
   const [notification, setNotification] = useState(null);
+
+  const handleToggleEnablement = async () => {
+    try {
+      const res = await axios.post(`${API_BASE_URL}/documents/${id}/toggle`);
+      setDoc(res.data);
+      setNotification({
+        type: 'success',
+        text: res.data.is_enabled !== false 
+          ? "Đã BẬT trạng thái RAG cho tài liệu này!" 
+          : "Đã TẮT trạng thái RAG cho tài liệu này (AI sẽ không hỏi từ tệp này nữa)."
+      });
+      setTimeout(() => setNotification(null), 4000);
+    } catch (err) {
+      console.error("Toggle error:", err);
+      setNotification({ type: 'error', text: "Không thể thay đổi trạng thái RAG." });
+      setTimeout(() => setNotification(null), 4000);
+    }
+  };
 
   const handleActivateVersion = async (versionId, versionNumber) => {
     try {
@@ -205,30 +223,54 @@ export default function DocumentDetailPage() {
               </span>
             </div>
             
-            <button 
-              onClick={() => triggerReprocessConfirm(doc.id, doc.original_file_name)}
-              disabled={doc.status === 'PENDING' || doc.status === 'PROCESSING'}
-              className="btn-secondary" 
-              style={{ 
-                padding: '8px 16px', 
-                fontSize: '0.8rem', 
-                display: 'inline-flex', 
-                alignItems: 'center', 
-                gap: '6px',
-                background: doc.status === 'PENDING' || doc.status === 'PROCESSING' 
-                  ? 'rgba(99, 102, 241, 0.03)' 
-                  : 'rgba(99, 102, 241, 0.1)',
-                border: doc.status === 'PENDING' || doc.status === 'PROCESSING'
-                  ? '1px solid rgba(99, 102, 241, 0.03)'
-                  : '1px solid rgba(99, 102, 241, 0.2)',
-                color: doc.status === 'PENDING' || doc.status === 'PROCESSING' ? '#555' : '#818cf8',
-                borderRadius: '10px',
-                cursor: doc.status === 'PENDING' || doc.status === 'PROCESSING' ? 'not-allowed' : 'pointer'
-              }}
-            >
-              <RefreshCw className={`w-4 h-4 ${doc.status === 'PROCESSING' ? 'animate-spin' : ''}`} />
-              Reprocess Document
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button 
+                onClick={handleToggleEnablement}
+                className="btn-secondary" 
+                style={{ 
+                  padding: '8px 16px', 
+                  fontSize: '0.8rem', 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '6px',
+                  background: doc.is_enabled !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                  border: doc.is_enabled !== false ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(148, 163, 184, 0.3)',
+                  color: doc.is_enabled !== false ? '#34d399' : '#94a3b8',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                title={doc.is_enabled !== false ? "Tạm ngưng không cho AI truy vấn từ tệp này" : "Kích hoạt cho phép AI truy vấn từ tệp này"}
+              >
+                <Power className="w-4 h-4" />
+                {doc.is_enabled !== false ? "Đang Bật RAG" : "Đã Tắt RAG"}
+              </button>
+
+              <button 
+                onClick={() => triggerReprocessConfirm(doc.id, doc.original_file_name)}
+                disabled={doc.status === 'PENDING' || doc.status === 'PROCESSING'}
+                className="btn-secondary" 
+                style={{ 
+                  padding: '8px 16px', 
+                  fontSize: '0.8rem', 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '6px',
+                  background: doc.status === 'PENDING' || doc.status === 'PROCESSING' 
+                    ? 'rgba(99, 102, 241, 0.03)' 
+                    : 'rgba(99, 102, 241, 0.1)',
+                  border: doc.status === 'PENDING' || doc.status === 'PROCESSING'
+                    ? '1px solid rgba(99, 102, 241, 0.03)'
+                    : '1px solid rgba(99, 102, 241, 0.2)',
+                  color: doc.status === 'PENDING' || doc.status === 'PROCESSING' ? '#555' : '#818cf8',
+                  borderRadius: '10px',
+                  cursor: doc.status === 'PENDING' || doc.status === 'PROCESSING' ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <RefreshCw className={`w-4 h-4 ${doc.status === 'PROCESSING' ? 'animate-spin' : ''}`} />
+                Reprocess Document
+              </button>
+            </div>
           </div>
 
           <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', margin: '4px 0 16px 0' }}>

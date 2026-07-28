@@ -165,5 +165,16 @@ def activate_document_version(document_id: str, version_id: str, db: Session = D
         logger.error(f"Failed to activate version {version_id} for doc {document_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to activate version: {str(e)}")
 
+@router.post("/{document_id}/toggle", response_model=DocumentResponse)
+def toggle_document_enablement(document_id: str, db: Session = Depends(get_db)):
+    try:
+        doc = DocumentService.toggle_enablement(db, document_id)
+        return doc
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as e:
+        logger.error(f"Failed to toggle enablement for doc {document_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to toggle document enablement: {str(e)}")
+
 
 

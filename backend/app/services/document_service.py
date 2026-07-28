@@ -279,5 +279,29 @@ class DocumentService:
             
         return doc
 
+    @staticmethod
+    def toggle_enablement(db: Session, document_id: str, is_enabled: Optional[bool] = None) -> Document:
+        doc = db.query(Document).filter(Document.id == document_id, Document.status != "DELETED").first()
+        if not doc:
+            raise ValueError("Document not found or has been deleted.")
+            
+        if is_enabled is None:
+            doc.is_enabled = not doc.is_enabled
+        else:
+            doc.is_enabled = is_enabled
+            
+        db.commit()
+        db.refresh(doc)
+        logger.info(f"Toggled document {doc.original_file_name} is_enabled to: {doc.is_enabled}")
+        
+        # Rebuild BM25 index to immediately exclude/include chunks of this document
+        try:
+            from app.services.bm25_service import BM25Service
+            BM25Service.rebuild_index()
+        except Exception as bm_err:
+            logger.error(f"Failed to rebuild BM25 index after toggling document enablement: {str(bm_err)}")
+            
+        return doc
+
 
 
