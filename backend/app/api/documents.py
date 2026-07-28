@@ -165,11 +165,25 @@ def activate_document_version(document_id: str, version_id: str, db: Session = D
         logger.error(f"Failed to activate version {version_id} for doc {document_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to activate version: {str(e)}")
 
-@router.post("/{document_id}/toggle", response_model=DocumentResponse)
+@router.post("/{document_id}/toggle", response_model=DocumentDetailResponse)
 def toggle_document_enablement(document_id: str, db: Session = Depends(get_db)):
     try:
         doc = DocumentService.toggle_enablement(db, document_id)
-        return doc
+        version_ids = [doc.active_version_id] if doc.active_version_id else []
+        chunk_counts = {}
+        if version_ids:
+            from sqlalchemy import func
+            counts_res = db.query(
+                DocumentChunk.document_version_id,
+                func.count(DocumentChunk.id)
+            ).filter(
+                DocumentChunk.document_version_id.in_(version_ids)
+            ).group_by(
+                DocumentChunk.document_version_id
+            ).all()
+            chunk_counts = {r[0]: r[1] for r in counts_res}
+            
+        return map_to_detail(doc, chunk_counts)
     except ValueError as val_err:
         raise HTTPException(status_code=400, detail=str(val_err))
     except Exception as e:

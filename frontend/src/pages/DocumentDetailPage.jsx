@@ -23,7 +23,7 @@ export default function DocumentDetailPage() {
   const handleToggleEnablement = async () => {
     try {
       const res = await axios.post(`${API_BASE_URL}/documents/${id}/toggle`);
-      setDoc(res.data);
+      await fetchDetails(false);
       setNotification({
         type: 'success',
         text: res.data.is_enabled !== false 

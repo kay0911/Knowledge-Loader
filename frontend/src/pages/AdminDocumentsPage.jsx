@@ -21,7 +21,8 @@ export default function AdminDocumentsPage() {
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
-  const handleToggleEnablement = async (docId) => {
+  const handleToggleEnablement = async (docId, e) => {
+    if (e) e.stopPropagation();
     try {
       await axios.post(`${API_BASE_URL}/documents/${docId}/toggle`);
       fetchDocuments();
@@ -398,7 +399,7 @@ export default function AdminDocumentsPage() {
                     <td style={{ padding: '16px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         <button 
-                          onClick={() => handleToggleEnablement(doc.id)}
+                          onClick={(e) => handleToggleEnablement(doc.id, e)}
                           className="btn-secondary" 
                           style={{ 
                             padding: '6px 12px', 
