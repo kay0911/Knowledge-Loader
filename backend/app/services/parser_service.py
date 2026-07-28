@@ -8,70 +8,175 @@ from typing import List, Dict, Any, Optional
 from app.schemas.normalized_block import NormalizedBlock
 from app.core.logging import logger
 
+try:
+    from markitdown import MarkItDown
+    markitdown_available = True
+    markitdown_instance = MarkItDown()
+except ImportError:
+    markitdown_available = False
+    markitdown_instance = None
+    logger.warning("markitdown package not found, falling back to direct parsing.")
+
 class ParserService:
     @staticmethod
-    def parse_pdf(file_path: str) -> List[NormalizedBlock]:
-        logger.info(f"Parsing PDF file (Page-aware): {file_path}")
+    def parse_markdown_content(
+        md_text: str, 
+        source_type: str, 
+        page_start: Optional[int] = None, 
+        page_end: Optional[int] = None,
+        initial_order: int = 0
+    ) -> List[NormalizedBlock]:
+        """
+        Parses standardized Markdown text into structured NormalizedBlock list.
+        Tracks heading hierarchy (heading_path), code blocks, tables, and lists.
+        """
+        blocks: List[NormalizedBlock] = []
+        lines = md_text.split("\n")
+        
+        current_heading_path: List[str] = []
+        source_order = initial_order
+        
+        buf_type = "paragraph"
+        buf_lines: List[str] = []
+        in_code_block = False
+        code_block_lines: List[str] = []
+
+        def flush_buffer():
+            nonlocal source_order, buf_lines, buf_type
+            if not buf_lines:
+                return
+            
+            content = "\n".join(buf_lines).strip()
+            if content:
+                source_order += 1
+                blocks.append(NormalizedBlock(
+                    block_id=str(uuid.uuid4()),
+                    source_type=source_type,
+                    block_type=buf_type,
+                    content=content,
+                    heading_path=list(current_heading_path),
+                    page_start=page_start,
+                    page_end=page_end,
+                    source_order=source_order
+                ))
+            buf_lines = []
+            buf_type = "paragraph"
+
+        for line in lines:
+            trimmed = line.strip()
+
+            # Handle Code Blocks ```
+            if trimmed.startswith("```"):
+                if in_code_block:
+                    code_block_lines.append(trimmed)
+                    source_order += 1
+                    blocks.append(NormalizedBlock(
+                        block_id=str(uuid.uuid4()),
+                        source_type=source_type,
+                        block_type="code",
+                        content="\n".join(code_block_lines),
+                        heading_path=list(current_heading_path),
+                        page_start=page_start,
+                        page_end=page_end,
+                        source_order=source_order
+                    ))
+                    code_block_lines = []
+                    in_code_block = False
+                else:
+                    flush_buffer()
+                    in_code_block = True
+                    code_block_lines = [trimmed]
+                continue
+
+            if in_code_block:
+                code_block_lines.append(line)
+                continue
+
+            # Handle Headings (# Heading)
+            heading_match = re.match(r"^(#{1,6})\s+(.*)$", trimmed)
+            if heading_match:
+                flush_buffer()
+                level = len(heading_match.group(1))
+                h_text = heading_match.group(2).strip()
+
+                if level == 1:
+                    current_heading_path = [h_text]
+                elif level == 2:
+                    current_heading_path = [current_heading_path[0], h_text] if len(current_heading_path) >= 1 else [h_text]
+                else:
+                    current_heading_path = current_heading_path[:level-1] + [h_text]
+
+                source_order += 1
+                blocks.append(NormalizedBlock(
+                    block_id=str(uuid.uuid4()),
+                    source_type=source_type,
+                    block_type="heading",
+                    content=h_text,
+                    heading_path=list(current_heading_path),
+                    page_start=page_start,
+                    page_end=page_end,
+                    source_order=source_order
+                ))
+                continue
+
+            # Handle Markdown Tables (| col | col |)
+            if trimmed.startswith("|") and trimmed.endswith("|"):
+                if buf_type != "table":
+                    flush_buffer()
+                    buf_type = "table"
+                buf_lines.append(trimmed)
+                continue
+            elif buf_type == "table":
+                flush_buffer()
+
+            # Handle Lists (- item, * item, 1. item)
+            if re.match(r"^(\*|-|\+|\d+\.)\s+", trimmed):
+                if buf_type != "list":
+                    flush_buffer()
+                    buf_type = "list"
+                buf_lines.append(trimmed)
+                continue
+            elif buf_type == "list" and trimmed == "":
+                flush_buffer()
+
+            # Empty lines flush buffer
+            if not trimmed:
+                flush_buffer()
+                continue
+
+            # Paragraph lines
+            if buf_type not in ["paragraph", "list"]:
+                flush_buffer()
+                buf_type = "paragraph"
+            buf_lines.append(line)
+
+        flush_buffer()
+        return blocks
+
+    @classmethod
+    def parse_pdf(cls, file_path: str) -> List[NormalizedBlock]:
+        logger.info(f"Parsing PDF file: {file_path}")
         blocks: List[NormalizedBlock] = []
         try:
             reader = pypdf.PdfReader(file_path)
-            source_order = 0
-            current_heading_path = []
+            order_counter = 0
 
             for page_idx, page in enumerate(reader.pages):
                 page_num = page_idx + 1
                 text = page.extract_text() or ""
-                lines = [line.strip() for line in text.split("\n") if line.strip()]
-                
-                if not lines:
+                if not text.strip():
                     continue
 
-                page_content_paragraphs = []
-                for line in lines:
-                    # Detect simple heading lines (e.g., Starts with Chapter, Section, 1., #)
-                    if re.match(r"^(Chương|Mục|\d+\.|\#+)\s+", line, re.IGNORECASE) and len(line) < 100:
-                        if page_content_paragraphs:
-                            source_order += 1
-                            blocks.append(NormalizedBlock(
-                                block_id=str(uuid.uuid4()),
-                                source_type="pdf",
-                                block_type="paragraph",
-                                content="\n".join(page_content_paragraphs),
-                                heading_path=list(current_heading_path),
-                                page_start=page_num,
-                                page_end=page_num,
-                                source_order=source_order
-                            ))
-                            page_content_paragraphs = []
-                        
-                        heading_clean = re.sub(r"^\#+\s*", "", line).strip()
-                        current_heading_path = [heading_clean]
-                        source_order += 1
-                        blocks.append(NormalizedBlock(
-                            block_id=str(uuid.uuid4()),
-                            source_type="pdf",
-                            block_type="heading",
-                            content=heading_clean,
-                            heading_path=list(current_heading_path),
-                            page_start=page_num,
-                            page_end=page_num,
-                            source_order=source_order
-                        ))
-                    else:
-                        page_content_paragraphs.append(line)
-
-                if page_content_paragraphs:
-                    source_order += 1
-                    blocks.append(NormalizedBlock(
-                        block_id=str(uuid.uuid4()),
-                        source_type="pdf",
-                        block_type="paragraph",
-                        content="\n".join(page_content_paragraphs),
-                        heading_path=list(current_heading_path),
-                        page_start=page_num,
-                        page_end=page_num,
-                        source_order=source_order
-                    ))
+                # Use MarkItDown on page text if available, or parse text directly
+                page_blocks = cls.parse_markdown_content(
+                    md_text=text,
+                    source_type="pdf",
+                    page_start=page_num,
+                    page_end=page_num,
+                    initial_order=order_counter
+                )
+                order_counter += len(page_blocks)
+                blocks.extend(page_blocks)
 
         except Exception as e:
             logger.error(f"Error parsing PDF {file_path}: {str(e)}")
@@ -79,9 +184,18 @@ class ParserService:
 
         return blocks
 
-    @staticmethod
-    def parse_docx(file_path: str) -> List[NormalizedBlock]:
-        logger.info(f"Parsing DOCX file: {file_path}")
+    @classmethod
+    def parse_docx(cls, file_path: str) -> List[NormalizedBlock]:
+        logger.info(f"Parsing DOCX file with MarkItDown: {file_path}")
+        try:
+            if markitdown_available and markitdown_instance:
+                result = markitdown_instance.convert(file_path)
+                md_text = result.text_content
+                return cls.parse_markdown_content(md_text=md_text, source_type="docx")
+        except Exception as err:
+            logger.warning(f"MarkItDown conversion failed for {file_path}, falling back to python-docx: {str(err)}")
+
+        # Fallback to python-docx parsing
         blocks: List[NormalizedBlock] = []
         try:
             doc = docx.Document(file_path)
@@ -97,30 +211,13 @@ class ParserService:
                 
                 if "heading" in style_name or text.startswith("#"):
                     heading_text = re.sub(r"^\#+\s*", "", text).strip()
-                    # Calculate depth
-                    if "heading 1" in style_name:
-                        current_heading_path = [heading_text]
-                    elif "heading 2" in style_name and len(current_heading_path) >= 1:
-                        current_heading_path = [current_heading_path[0], heading_text]
-                    else:
-                        current_heading_path = [heading_text]
-
+                    current_heading_path = [heading_text]
                     source_order += 1
                     blocks.append(NormalizedBlock(
                         block_id=str(uuid.uuid4()),
                         source_type="docx",
                         block_type="heading",
                         content=heading_text,
-                        heading_path=list(current_heading_path),
-                        source_order=source_order
-                    ))
-                elif style_name.startswith("list"):
-                    source_order += 1
-                    blocks.append(NormalizedBlock(
-                        block_id=str(uuid.uuid4()),
-                        source_type="docx",
-                        block_type="list",
-                        content=text,
                         heading_path=list(current_heading_path),
                         source_order=source_order
                     ))
@@ -134,28 +231,6 @@ class ParserService:
                         heading_path=list(current_heading_path),
                         source_order=source_order
                     ))
-
-            # Also parse tables in DOCX
-            for table_idx, table in enumerate(doc.tables):
-                table_rows = []
-                for row in table.rows:
-                    cells = [cell.text.strip() for cell in row.cells]
-                    if any(cells):
-                        table_rows.append(" | ".join(cells))
-                
-                if table_rows:
-                    source_order += 1
-                    table_content = "\n".join(table_rows)
-                    blocks.append(NormalizedBlock(
-                        block_id=str(uuid.uuid4()),
-                        source_type="docx",
-                        block_type="table",
-                        content=table_content,
-                        heading_path=list(current_heading_path),
-                        table_id=f"table_{table_idx + 1}",
-                        source_order=source_order
-                    ))
-
         except Exception as e:
             logger.error(f"Error parsing DOCX {file_path}: {str(e)}")
             raise e
@@ -173,14 +248,11 @@ class ParserService:
             for sheet_name in wb.sheetnames:
                 sheet = wb[sheet_name]
                 
-                # Identify headers from row 1
                 headers = []
                 for col in range(1, sheet.max_column + 1):
                     val = sheet.cell(row=1, column=col).value
                     headers.append(str(val).strip() if val is not None else f"Col{col}")
                 
-                # Read row records
-                header_line = " | ".join(headers)
                 for r in range(2, sheet.max_row + 1):
                     row_vals = []
                     has_data = False
@@ -194,7 +266,6 @@ class ParserService:
                         continue
                     
                     source_order += 1
-                    # Format as structured logical record
                     record_lines = [f"Row {r}: " + " | ".join([f"{h}: {v}" for h, v in zip(headers, row_vals) if v])]
                     
                     blocks.append(NormalizedBlock(
@@ -225,5 +296,9 @@ class ParserService:
             return cls.parse_docx(file_path)
         elif file_type in ["xlsx", "xls", "csv"]:
             return cls.parse_xlsx(file_path)
+        elif file_type in ["md", "markdown"]:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return cls.parse_markdown_content(content, source_type="md")
         else:
             raise ValueError(f"Unsupported file type: {file_type}")
