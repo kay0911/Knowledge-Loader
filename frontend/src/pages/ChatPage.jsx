@@ -577,14 +577,25 @@ function ChatPage() {
                 <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-color)' }}>{activeCitation.file_name}</div>
               </div>
 
-              {activeCitation.page_number && (
+              {(activeCitation.page_start || activeCitation.page_number) && (
                 <div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Trang số</div>
-                  <div style={{ fontSize: '0.9rem', color: 'var(--text-color)' }}>Trang {activeCitation.page_number}</div>
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-color)' }}>
+                    {activeCitation.page_start && activeCitation.page_end && activeCitation.page_start !== activeCitation.page_end
+                      ? `Trang ${activeCitation.page_start} - ${activeCitation.page_end}`
+                      : `Trang ${activeCitation.page_start || activeCitation.page_number}`}
+                  </div>
                 </div>
               )}
 
-              {activeCitation.heading && (
+              {(activeCitation.heading_path && activeCitation.heading_path.length > 0) ? (
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Đường dẫn tiêu đề (Heading Path)</div>
+                  <div style={{ fontSize: '0.85rem', color: '#a5b4fc', fontFamily: 'monospace', background: 'rgba(99, 102, 241, 0.1)', padding: '4px 8px', borderRadius: '4px', display: 'inline-block' }}>
+                    {activeCitation.heading_path.join(' > ')}
+                  </div>
+                </div>
+              ) : activeCitation.heading && (
                 <div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Mục tiêu đề</div>
                   <div style={{ fontSize: '0.85rem', color: '#a5b4fc', fontFamily: 'monospace', background: 'rgba(99, 102, 241, 0.1)', padding: '4px 8px', borderRadius: '4px', display: 'inline-block' }}>{activeCitation.heading}</div>

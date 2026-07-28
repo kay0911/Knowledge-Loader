@@ -32,6 +32,10 @@ try:
         conn.execute(text("UPDATE chat_logs SET session_id = id WHERE session_id IS NULL;"))
         logger.info("Running database migrations for Document is_enabled...")
         conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN NOT NULL DEFAULT TRUE;"))
+        logger.info("Running database migrations for DocumentChunk metadata columns...")
+        conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS heading_path JSON;"))
+        conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS page_start INTEGER;"))
+        conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS page_end INTEGER;"))
     logger.info("Migrations completed successfully.")
 except Exception as migration_err:
     logger.error(f"Migration failed: {str(migration_err)}")

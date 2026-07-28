@@ -55,8 +55,11 @@ class DocumentChunk(Base):
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     document_version_id = Column(UUID(as_uuid=True), ForeignKey("document_versions.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)
-    page_number = Column(Integer, nullable=True)
     heading = Column(String, nullable=True)
+    heading_path = Column(JSON, nullable=True) # List of heading hierarchy strings
+    page_number = Column(Integer, nullable=True)
+    page_start = Column(Integer, nullable=True)
+    page_end = Column(Integer, nullable=True)
     sheet_name = Column(String, nullable=True)
     row_start = Column(Integer, nullable=True)
     row_end = Column(Integer, nullable=True)

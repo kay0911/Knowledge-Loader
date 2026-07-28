@@ -29,11 +29,11 @@ def process_job(db: Session, job: ProcessingJob):
             
         db.commit()
         
-        # Parse file from disk
-        parsed_items = ParserService.parse(doc.file_path, doc.file_type)
+        # Parse file from disk into NormalizedBlocks
+        normalized_blocks = ParserService.parse(doc.file_path, doc.file_type)
         
-        # Chunk text
-        chunks_data = ChunkingService.chunk_document(parsed_items)
+        # Chunk normalized blocks using Dual Chunker Pipeline
+        chunks_data = ChunkingService.chunk_normalized_blocks(normalized_blocks)
         
         # Save chunks to PostgreSQL
         chunks = []
@@ -42,11 +42,14 @@ def process_job(db: Session, job: ProcessingJob):
                 document_id=doc.id,
                 document_version_id=version.id,
                 content=item["content"],
-                page_number=item["page_number"],
-                heading=item["heading"],
-                sheet_name=item["sheet_name"],
-                row_start=item["row_start"],
-                row_end=item["row_end"],
+                page_number=item.get("page_number"),
+                page_start=item.get("page_start"),
+                page_end=item.get("page_end"),
+                heading=item.get("heading"),
+                heading_path=item.get("heading_path"),
+                sheet_name=item.get("sheet_name"),
+                row_start=item.get("row_start"),
+                row_end=item.get("row_end"),
                 chunk_order=item["chunk_order"],
                 is_active=True
             )

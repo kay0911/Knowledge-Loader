@@ -9,7 +9,10 @@ class DocumentChunkResponse(BaseModel):
     document_version_id: UUID
     content: str
     page_number: Optional[int] = None
+    page_start: Optional[int] = None
+    page_end: Optional[int] = None
     heading: Optional[str] = None
+    heading_path: Optional[List[str]] = None
     sheet_name: Optional[str] = None
     row_start: Optional[int] = None
     row_end: Optional[int] = None
