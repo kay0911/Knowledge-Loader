@@ -30,6 +30,8 @@ try:
         logger.info("Running database migrations for ChatLog session_id...")
         conn.execute(text("ALTER TABLE chat_logs ADD COLUMN IF NOT EXISTS session_id UUID;"))
         conn.execute(text("UPDATE chat_logs SET session_id = id WHERE session_id IS NULL;"))
+        logger.info("Running database migrations for Document is_enabled...")
+        conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN NOT NULL DEFAULT TRUE;"))
     logger.info("Migrations completed successfully.")
 except Exception as migration_err:
     logger.error(f"Migration failed: {str(migration_err)}")
