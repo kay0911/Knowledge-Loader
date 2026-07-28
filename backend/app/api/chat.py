@@ -8,6 +8,7 @@ from app.db.postgres import SessionLocal
 from app.schemas.chat import ChatRequest, ChatResponse, ChatLogResponse
 from app.models.chat import ChatLog
 from app.services.chat_service import ChatService
+from app.core.logging import logger
 
 router = APIRouter()
 
