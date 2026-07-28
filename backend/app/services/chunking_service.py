@@ -49,17 +49,19 @@ class ChunkingService:
         """
         Recursive Chunker for Prose, Headings, Lists, and Code blocks.
         Performs Post-Merge to combine short adjacent blocks up to TARGET_CHARS budget.
+        Anchors heading_path to the specific content section to prevent metadata misalignment.
         """
         chunks: List[Dict[str, Any]] = []
         
         current_content_parts: List[str] = []
         current_len = 0
         current_heading_path: List[str] = []
+        active_chunk_heading_path: List[str] = []
         current_page_start: Optional[int] = None
         current_page_end: Optional[int] = None
 
         def flush_chunk():
-            nonlocal current_content_parts, current_len, current_heading_path, current_page_start, current_page_end
+            nonlocal current_content_parts, current_len, active_chunk_heading_path, current_heading_path, current_page_start, current_page_end
             if not current_content_parts:
                 return
 
@@ -67,14 +69,18 @@ class ChunkingService:
             if not full_text:
                 return
 
+            # Use active_chunk_heading_path (anchored to the content in this chunk)
+            effective_heading_path = list(active_chunk_heading_path) if active_chunk_heading_path else list(current_heading_path)
+            heading_title = effective_heading_path[-1] if effective_heading_path else None
+
             # If full_text exceeds MAX_CHARS, split recursively
             if len(full_text) > cls.MAX_CHARS:
                 sub_texts = cls._recursive_split_text(full_text, cls.MAX_CHARS, cls.OVERLAP_CHARS)
                 for sub in sub_texts:
                     chunks.append({
                         "content": sub,
-                        "heading": current_heading_path[-1] if current_heading_path else None,
-                        "heading_path": current_heading_path,
+                        "heading": heading_title,
+                        "heading_path": effective_heading_path,
                         "page_number": current_page_start,
                         "page_start": current_page_start,
                         "page_end": current_page_end,
@@ -85,8 +91,8 @@ class ChunkingService:
             else:
                 chunks.append({
                     "content": full_text,
-                    "heading": current_heading_path[-1] if current_heading_path else None,
-                    "heading_path": current_heading_path,
+                    "heading": heading_title,
+                    "heading_path": effective_heading_path,
                     "page_number": current_page_start,
                     "page_start": current_page_start,
                     "page_end": current_page_end,
@@ -107,11 +113,25 @@ class ChunkingService:
 
             current_content_parts = overlap_parts
             current_len = sum(len(p) for p in current_content_parts)
+            if not current_content_parts:
+                active_chunk_heading_path = []
+                current_page_start = None
+                current_page_end = None
 
         for block in blocks:
             text = block.content.strip()
             if not text:
                 continue
+
+            # If encountering a new heading block and buffer already has text, flush preceding section first!
+            if block.block_type == "heading" and current_content_parts:
+                flush_chunk()
+
+            if block.heading_path:
+                current_heading_path = list(block.heading_path)
+
+            if not active_chunk_heading_path:
+                active_chunk_heading_path = list(current_heading_path)
 
             # Update page range tracking
             if block.page_start is not None:
@@ -120,9 +140,6 @@ class ChunkingService:
             if block.page_end is not None:
                 if current_page_end is None or block.page_end > current_page_end:
                     current_page_end = block.page_end
-
-            if block.heading_path:
-                current_heading_path = block.heading_path
 
             text_len = len(text)
 
@@ -133,6 +150,7 @@ class ChunkingService:
                 # If adding this block exceeds target, check if current buffer meets MIN_MERGE_CHARS
                 if current_len >= cls.MIN_MERGE_CHARS:
                     flush_chunk()
+                    active_chunk_heading_path = list(current_heading_path)
                     current_content_parts.append(text)
                     current_len = sum(len(p) for p in current_content_parts)
                     if block.page_start is not None:
@@ -146,6 +164,7 @@ class ChunkingService:
                         current_len += text_len
                     else:
                         flush_chunk()
+                        active_chunk_heading_path = list(current_heading_path)
                         current_content_parts.append(text)
                         current_len = len(text)
                         if block.page_start is not None:
