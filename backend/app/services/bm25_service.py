@@ -52,7 +52,7 @@ class BM25Service:
             db.close()
 
     @classmethod
-    def search(cls, query: str, top_k: int = 15) -> List[DocumentChunk]:
+    def search(cls, query: str, top_k: int = 10) -> List[DocumentChunk]:
         """
         Perform BM25 search on active chunks.
         """

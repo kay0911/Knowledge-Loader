@@ -27,7 +27,7 @@ class RetrievalService:
         semantic_chunks = []
         try:
             query_embedding = EmbeddingService.get_embedding(query)
-            # Fetch top 15 chunks based on pgvector cosine distance
+            # Fetch top 10 chunks based on pgvector cosine distance
             semantic_chunks = db.query(DocumentChunk).options(
                 joinedload(DocumentChunk.document)
             ).join(
@@ -39,7 +39,7 @@ class RetrievalService:
                 DocumentChunk.embedding.isnot(None)
             ).order_by(
                 DocumentChunk.embedding.cosine_distance(query_embedding)
-            ).limit(15).all()
+            ).limit(10).all()
             logger.info(f"Semantic search retrieved {len(semantic_chunks)} chunks.")
         except Exception as e:
             logger.error(f"Semantic search failed: {str(e)}", exc_info=True)
@@ -47,7 +47,7 @@ class RetrievalService:
         # 2. Keyword Search (BM25)
         bm25_chunks = []
         try:
-            bm25_chunks = BM25Service.search(query, top_k=15)
+            bm25_chunks = BM25Service.search(query, top_k=10)
             logger.info(f"BM25 search retrieved {len(bm25_chunks)} chunks.")
         except Exception as e:
             logger.error(f"BM25 search failed: {str(e)}", exc_info=True)
@@ -135,7 +135,7 @@ class RetrievalService:
                r.description AS description,
                s.name AS source_name, 
                t.name AS target_name
-        LIMIT 15
+        LIMIT 10
         """
         
         try:
