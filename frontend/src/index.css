@@ -548,3 +548,44 @@ body {
   transition: background 0.25s;
 }
 
+/* AI Response Loading Animations */
+@keyframes spin-smooth {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.65;
+    filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.4));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.95));
+  }
+}
+
+@keyframes text-shimmer {
+  0%, 100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.chatgpt-loading-spinner {
+  animation: spin-smooth 1.2s linear infinite, pulse-glow 1.8s ease-in-out infinite;
+  color: #10b981 !important;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.chatgpt-loading-text {
+  animation: text-shimmer 1.8s ease-in-out infinite;
+  color: #10b981;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+

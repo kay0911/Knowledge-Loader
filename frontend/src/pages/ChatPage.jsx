@@ -404,9 +404,11 @@ function ChatPage() {
             <div className="chatgpt-message-row assistant fade-in">
               <div className="chatgpt-message-content">
                 <div className="chatgpt-avatar assistant">AI</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#8e8e8e', fontSize: '0.9rem' }}>
-                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-                  Đang truy xuất kiến thức & tổng hợp câu trả lời...
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem' }}>
+                  <RefreshCw className="chatgpt-loading-spinner" />
+                  <span className="chatgpt-loading-text">
+                    Đang truy xuất kiến thức & tổng hợp câu trả lời...
+                  </span>
                 </div>
               </div>
             </div>
