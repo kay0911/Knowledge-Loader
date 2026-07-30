@@ -205,7 +205,7 @@ function AppContent() {
               Trợ lý AI
             </NavLink>
             <NavLink 
-              to="/" 
+              to="/admin" 
               className={({ isActive }) => `chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
               style={{ textDecoration: 'none' }}
               onClick={() => { if (isMobile) setSidebarOpen(false); }}
@@ -427,9 +427,11 @@ function AppContent() {
         {/* Dynamic Route views */}
         <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
           <Routes>
-            <Route path="/" element={<AdminDocumentsPage />} />
-            <Route path="/documents/:id" element={<DocumentDetailPage />} />
+            <Route path="/" element={<ChatPage />} />
             <Route path="/chat" element={<ChatPage />} />
+            <Route path="/admin" element={<AdminDocumentsPage />} />
+            <Route path="/documents" element={<AdminDocumentsPage />} />
+            <Route path="/documents/:id" element={<DocumentDetailPage />} />
           </Routes>
         </div>
 
