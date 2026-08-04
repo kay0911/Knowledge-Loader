@@ -147,7 +147,7 @@ export default function DocumentDetailPage() {
         <AlertTriangle className="w-12 h-12 text-rose-500" style={{ margin: '0 auto 16px auto' }} />
         <h3 style={{ fontSize: '1.2rem', color: '#f9f9f9', margin: '0 0 8px 0' }}>Có lỗi xảy ra</h3>
         <p style={{ color: '#8e8e8e', fontSize: '0.9rem', margin: '0 0 24px 0' }}>{error || "Không tìm thấy tài liệu yêu cầu."}</p>
-        <button onClick={() => navigate('/')} className="btn-secondary">Quay lại Dashboard</button>
+        <button onClick={() => navigate('/admin')} className="btn-secondary">Quay lại Quản lý tài liệu</button>
       </div>
     );
   }
@@ -181,12 +181,12 @@ export default function DocumentDetailPage() {
 
       {/* Back button */}
       <button 
-        onClick={() => navigate('/')} 
+        onClick={() => navigate('/admin')} 
         className="btn-secondary" 
         style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', width: 'fit-content', padding: '8px 14px' }}
       >
         <ArrowLeft className="w-4 h-4" />
-        Quay lại Dashboard
+        Quay lại Quản lý tài liệu
       </button>
 
       {/* Main Document Details Summary Panel */}

@@ -16,7 +16,7 @@ class GraphExtractionService:
             api_key = settings.GEMINI_API_KEY
             if not api_key or api_key == "YOUR_GEMINI_API_KEY_HERE":
                 logger.warning("GEMINI_API_KEY is placeholder or empty in settings!")
-            genai.configure(api_key=api_key)
+            genai.configure(api_key=api_key, transport='rest')
             
             # Load prompt template
             prompt_path = os.path.join(
@@ -44,17 +44,38 @@ class GraphExtractionService:
         if not chunk_content.strip():
             return [], []
             
+        from app.services.key_rotation_service import KeyRotationService
+        from app.db.postgres import SessionLocal
+        
+        db = SessionLocal()
         try:
-            model = genai.GenerativeModel(
-                model_name=settings.GEMINI_LLM_MODEL,
-                generation_config={"response_mime_type": "application/json"}
-            )
-            
             prompt = cls._prompt_template.replace("{text}", chunk_content)
-            response = model.generate_content(prompt)
-            
-            response_text = response.text.strip()
+            response_text = ""
+            last_error = None
+
+            for attempt in range(5):
+                raw_key, key_obj = KeyRotationService.get_valid_api_key(db, provider="gemini")
+                try:
+                    genai.configure(api_key=raw_key, transport='rest')
+                    model = genai.GenerativeModel(
+                        model_name=settings.GEMINI_LLM_MODEL,
+                        generation_config={"response_mime_type": "application/json"}
+                    )
+                    response = model.generate_content(prompt)
+                    response_text = response.text.strip()
+                    if key_obj:
+                        KeyRotationService.report_key_success(db, key_obj.id)
+                    break
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e)
+                    logger.warning(f"Graph extraction attempt {attempt + 1} with key '{KeyRotationService.mask_key(raw_key)}' failed: {err_str}")
+                    if key_obj:
+                        KeyRotationService.report_key_error(db, key_obj.id, err_str)
+
             if not response_text:
+                if last_error:
+                    logger.error(f"Graph extraction failed after key retries: {str(last_error)}")
                 return [], []
                 
             # Parse JSON response
@@ -72,6 +93,8 @@ class GraphExtractionService:
             logger.error(f"Failed to extract graph from chunk content: {str(e)}", exc_info=True)
             # Fail silently in worker loop or let worker catch it? Let's return empty lists so worker can keep going
             return [], []
+        finally:
+            db.close()
 
     @staticmethod
     def _normalize_entities(entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

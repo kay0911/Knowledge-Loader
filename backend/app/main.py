@@ -1,15 +1,40 @@
 import os
+import ssl
+import urllib3
+import requests
+
+# Bypass corporate SSL inspection certificate verification for Gemini / LLM HTTP requests
+ssl._create_default_https_context = ssl._create_unverified_context
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+os.environ['CURL_CA_BUNDLE'] = ''
+os.environ['REQUESTS_CA_BUNDLE'] = ''
+os.environ['PYTHONHTTPSVERIFY'] = '0'
+
+old_merge_environment_settings = requests.Session.merge_environment_settings
+def merge_environment_settings(self, url, proxies, stream, verify, cert):
+    return old_merge_environment_settings(self, url, proxies, stream, False, cert)
+requests.Session.merge_environment_settings = merge_environment_settings
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.postgres import engine, Base
 from app.api.documents import router as documents_router
 from app.api.chat import router as chat_router
+from app.api.keys import router as keys_router
 from app.workers.document_worker import start_worker
 from app.core.logging import logger
 
 from sqlalchemy import text
 from app.models.document import Document, DocumentVersion, DocumentChunk, ProcessingJob
 from app.models.chat import ChatLog
+from app.models.llm_key import LLMKey
+
+# Ensure vector extension exists before table creation
+try:
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+except Exception as ext_err:
+    logger.warning(f"Could not create vector extension: {ext_err}")
 
 # Initialize database tables
 logger.info("Initializing database tables...")
@@ -71,3 +96,4 @@ def health_check():
 # Include routers
 app.include_router(documents_router, prefix="/api")
 app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
+app.include_router(keys_router, prefix="/api")

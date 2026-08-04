@@ -163,7 +163,7 @@ export default function AdminDocumentsPage() {
   const processingDocs = documents.filter(d => d.status === 'PROCESSING' || d.status === 'PENDING').length;
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '32px' }} className="fade-in">
+    <div style={{ maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '32px', boxSizing: 'border-box' }} className="fade-in">
       
       {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -304,16 +304,16 @@ export default function AdminDocumentsPage() {
             <p style={{ margin: 0, fontSize: '0.9rem' }}>Chưa có tài liệu nào trong cơ sở dữ liệu.</p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+          <div className="table-container" style={{ width: '100%', overflowX: 'auto', paddingBottom: '8px' }}>
+            <table style={{ width: '100%', minWidth: '980px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--table-border)', color: 'var(--text-light)' }}>
-                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Tên tài liệu</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Định dạng</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Routing</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Trạng thái</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Số Chunks</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'right' }}>Hành động</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '240px' }}>Tên tài liệu</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '90px' }}>Định dạng</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '90px' }}>Routing</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '130px' }}>Trạng thái</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '90px' }}>Số Chunks</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'right', minWidth: '340px' }}>Hành động</th>
                 </tr>
               </thead>
               <tbody>
@@ -326,12 +326,23 @@ export default function AdminDocumentsPage() {
                   >
                     
                     {/* File Name & UUID */}
-                    <td style={{ padding: '16px' }}>
+                    <td style={{ padding: '16px', maxWidth: '300px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 500, color: 'var(--text-color)', cursor: 'pointer' }} onClick={() => navigate(`/documents/${doc.id}`)}>
+                        <span 
+                          style={{ 
+                            fontWeight: 500, 
+                            color: 'var(--text-color)', 
+                            cursor: 'pointer',
+                            wordBreak: 'break-word',
+                            whiteSpace: 'normal',
+                            lineHeight: '1.4'
+                          }} 
+                          onClick={() => navigate(`/documents/${doc.id}`)}
+                          title={doc.original_file_name}
+                        >
                           {doc.original_file_name}
                         </span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '2px' }}>{doc.id}</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '4px', wordBreak: 'break-all' }}>{doc.id}</span>
                       </div>
                     </td>
 
@@ -396,8 +407,8 @@ export default function AdminDocumentsPage() {
                     </td>
 
                     {/* Action buttons */}
-                    <td style={{ padding: '16px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <td style={{ padding: '16px', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '340px' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
                         <button 
                           onClick={(e) => handleToggleEnablement(doc.id, e)}
                           className="btn-secondary" 

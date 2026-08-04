@@ -19,7 +19,7 @@ class ChatService:
     def _configure(cls):
         if not cls._configured:
             api_key = settings.GEMINI_API_KEY
-            genai.configure(api_key=api_key)
+            genai.configure(api_key=api_key, transport='rest')
             
             # Load prompt template
             prompt_path = os.path.join(
@@ -69,15 +69,40 @@ class ChatService:
                     "Câu hỏi độc lập viết lại:"
                 )
                 try:
-                    model = genai.GenerativeModel(model_name=settings.GEMINI_LLM_MODEL)
-                    response = model.generate_content(rewrite_prompt)
-                    rewritten_question = response.text.strip()
+                    rewritten_question = cls._generate_with_key_rotation(db, rewrite_prompt)
                     logger.info(f"Original question: '{question}' -> Rewritten for search: '{rewritten_question}'")
                 except Exception as ex:
                     logger.error(f"Failed to rewrite question using history: {str(ex)}")
                     rewritten_question = question
                     
         return history_str, rewritten_question
+
+    @classmethod
+    def _generate_with_key_rotation(cls, db: Session, prompt: str) -> str:
+        """
+        Execute Gemini LLM generation with rotated API keys.
+        """
+        from app.services.key_rotation_service import KeyRotationService
+        last_error = None
+
+        for attempt in range(5):
+            raw_key, key_obj = KeyRotationService.get_valid_api_key(db, provider="gemini")
+            try:
+                genai.configure(api_key=raw_key, transport='rest')
+                model = genai.GenerativeModel(model_name=settings.GEMINI_LLM_MODEL)
+                response = model.generate_content(prompt)
+                ans = response.text.strip()
+                if key_obj:
+                    KeyRotationService.report_key_success(db, key_obj.id)
+                return ans
+            except Exception as e:
+                last_error = e
+                err_str = str(e)
+                logger.warning(f"LLM Generation attempt {attempt + 1} with key '{KeyRotationService.mask_key(raw_key)}' failed: {err_str}")
+                if key_obj:
+                    KeyRotationService.report_key_error(db, key_obj.id, err_str)
+
+        raise last_error
 
     @classmethod
     def ask(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False) -> Tuple[ChatLog, List[Dict[str, Any]]]:
@@ -118,16 +143,14 @@ class ChatService:
         # 3. Call Gemini LLM
         answer = ""
         try:
-            model = genai.GenerativeModel(model_name=settings.GEMINI_LLM_MODEL)
             if history_str:
                 question_with_history = f"(Lịch sử hội thoại để tham khảo:\n{history_str})\n\nCâu hỏi hiện tại cần trả lời: {question}"
             else:
                 question_with_history = question
             prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question_with_history)
             
-            logger.info("Calling Gemini LLM for Q&A...")
-            response = model.generate_content(prompt)
-            answer = response.text.strip()
+            logger.info("Calling Gemini LLM for Q&A with key rotation...")
+            answer = cls._generate_with_key_rotation(db, prompt)
         except Exception as e:
             logger.error(f"Gemini LLM call failed: {str(e)}", exc_info=True)
             answer = "Đã xảy ra lỗi khi gọi trợ lý AI. Vui lòng thử lại sau."

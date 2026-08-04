@@ -1,78 +1,74 @@
 import google.generativeai as genai
-from typing import List
+from typing import List, Optional
+from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.logging import logger
+from app.db.postgres import SessionLocal
+from app.services.key_rotation_service import KeyRotationService
 
 class EmbeddingService:
-    _configured = False
-
     @classmethod
-    def _configure(cls):
-        if not cls._configured:
-            api_key = settings.GEMINI_API_KEY
-            if not api_key or api_key == "YOUR_GEMINI_API_KEY_HERE":
-                logger.warning("GEMINI_API_KEY is placeholder or empty in settings!")
-            genai.configure(api_key=api_key)
-            cls._configured = True
-
-    @classmethod
-    def get_embedding(cls, text: str) -> List[float]:
+    def get_embedding(cls, text: str, db: Optional[Session] = None) -> List[float]:
         """
-        Generate embedding for the text using Gemini API or Mock vector for benchmark.
+        Generate embedding for the text using rotated Gemini API keys.
         """
         if settings.MOCK_AI_SERVICES:
-            # Deterministic mock embedding vector for benchmark performance testing
             import hashlib
             hash_val = int(hashlib.md5(text.encode('utf-8')).hexdigest(), 16)
             vec = [(float((hash_val >> (i % 32)) & 0xFF) / 255.0 - 0.5) for i in range(settings.GEMINI_EMBEDDING_DIMENSION)]
             return vec
 
-        cls._configure()
         if not text.strip():
-            # Return zero vector if text is empty
             return [0.0] * settings.GEMINI_EMBEDDING_DIMENSION
-            
+
+        close_db = False
+        if db is None:
+            db = SessionLocal()
+            close_db = True
+
         try:
             model_name = settings.GEMINI_EMBEDDING_MODEL
-            # Clean model name if models/ prefix is missing or extra
-            if not model_name.startswith("models/"):
-                # Usually embedding-001 is models/embedding-001, gemini-embedding-1 is models/gemini-embedding-1
-                # But google-generativeai SDK accepts both raw names or prefixed names.
-                # Let's pass it directly or with prefix models/
-                # Let's use the settings directly
-                pass
-                
-            response = genai.embed_content(
-                model=model_name,
-                content=text,
-                task_type="retrieval_document",
-                output_dimensionality=settings.GEMINI_EMBEDDING_DIMENSION
-            )
-            
-            # Extract embedding values
-            if isinstance(response, dict) and "embedding" in response:
-                values = response["embedding"]
-            elif hasattr(response, "embedding") and isinstance(response.embedding, dict) and "values" in response.embedding:
-                values = response.embedding["values"]
-            elif hasattr(response, "embedding") and isinstance(response.embedding, list):
-                values = response.embedding
-            elif hasattr(response, "embedding") and hasattr(response.embedding, "values"):
-                values = response.embedding.values
-            else:
-                # Direct lookup if response has standard dictionary key or attribute
+            last_error = None
+
+            # Attempt embedding with key rotation
+            for attempt in range(5):
+                raw_key, key_obj = KeyRotationService.get_valid_api_key(db, provider="gemini")
                 try:
-                    values = response["embedding"]["values"]
-                except:
-                    values = response.get("embedding", {}).get("values", [])
+                    genai.configure(api_key=raw_key, transport='rest')
+                    response = genai.embed_content(
+                        model=model_name,
+                        content=text,
+                        task_type="retrieval_document",
+                        output_dimensionality=settings.GEMINI_EMBEDDING_DIMENSION
+                    )
                     
-            if not values:
-                raise ValueError(f"Could not extract embedding values from response: {response}")
-                
-            # If dimension is different from expected, warn and return values
-            if len(values) != settings.GEMINI_EMBEDDING_DIMENSION:
-                logger.warning(f"Embedding dimension mismatch: expected {settings.GEMINI_EMBEDDING_DIMENSION}, got {len(values)}")
-                
-            return values
-        except Exception as e:
-            logger.error(f"Error calling Gemini Embedding API ({settings.GEMINI_EMBEDDING_MODEL}): {str(e)}")
-            raise e
+                    values = None
+                    if isinstance(response, dict) and "embedding" in response:
+                        val = response["embedding"]
+                        values = val.get("values", val) if isinstance(val, dict) else val
+                    elif hasattr(response, "embedding"):
+                        emb = response.embedding
+                        if isinstance(emb, dict):
+                            values = emb.get("values", [])
+                        elif hasattr(emb, "values"):
+                            values = emb.values
+                        elif isinstance(emb, list):
+                            values = emb
+
+                    if values and len(values) > 0:
+                        if key_obj:
+                            KeyRotationService.report_key_success(db, key_obj.id)
+                        return list(values)
+
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e)
+                    logger.warning(f"Embedding attempt {attempt + 1} with key '{KeyRotationService.mask_key(raw_key)}' failed: {err_str}")
+                    if key_obj:
+                        KeyRotationService.report_key_error(db, key_obj.id, err_str)
+
+            logger.error(f"Error calling Gemini Embedding API: {str(last_error)}")
+            raise last_error
+        finally:
+            if close_db:
+                db.close()
