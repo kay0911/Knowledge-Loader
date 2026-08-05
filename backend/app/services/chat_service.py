@@ -26,6 +26,7 @@ from app.services.retrieval_service import RetrievalService
 class ChatService:
     _configured = False
     _prompt_template = ""
+    _rewrite_prompt_template = ""
 
     @classmethod
     def _configure(cls):
@@ -33,12 +34,13 @@ class ChatService:
             api_key = settings.GEMINI_API_KEY
             genai.configure(api_key=api_key, transport='rest')
             
-            # Load prompt template
-            prompt_path = os.path.join(
+            prompts_dir = os.path.join(
                 os.path.dirname(os.path.dirname(__file__)),
-                "prompts",
-                "chat_answer.txt"
+                "prompts"
             )
+
+            # Load answer prompt template
+            prompt_path = os.path.join(prompts_dir, "chat_answer.txt")
             try:
                 with open(prompt_path, "r", encoding="utf-8") as f:
                     cls._prompt_template = f.read()
@@ -47,10 +49,28 @@ class ChatService:
                 cls._prompt_template = (
                     "Answer strictly based on this context:\n{context}\n\nQuestion: {question}"
                 )
+
+            # Load rewrite prompt template
+            rewrite_prompt_path = os.path.join(prompts_dir, "query_rewrite.txt")
+            try:
+                with open(rewrite_prompt_path, "r", encoding="utf-8") as f:
+                    cls._rewrite_prompt_template = f.read()
+            except Exception as e:
+                logger.error(f"Failed to load query_rewrite.txt: {str(e)}")
+                cls._rewrite_prompt_template = (
+                    "Bạn là trợ lý ảo phụ trách viết lại câu hỏi tìm kiếm. "
+                    "Dựa trên lịch sử hội thoại dưới đây và câu hỏi tiếp theo, hãy viết lại câu hỏi tiếp theo thành một câu hỏi độc lập, đầy đủ ngữ nghĩa để tìm kiếm trong cơ sở dữ liệu. "
+                    "Chỉ trả về câu hỏi độc lập mới, KHÔNG trả lời câu hỏi và KHÔNG thêm bất kỳ giải thích nào khác.\n\n"
+                    "Lịch sử hội thoại:\n{history}\n\n"
+                    "Câu hỏi tiếp theo: {question}\n\n"
+                    "Câu hỏi độc lập viết lại:"
+                )
+
             cls._configured = True
 
     @classmethod
     def _prepare_history_and_query(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False):
+        cls._configure()
         history_str = ""
         rewritten_question = question
         
@@ -72,13 +92,9 @@ class ChatService:
                 history_str = "\n\n".join(history_str_list)
                 
                 # Rewrite question using LLM to make it a standalone search query
-                rewrite_prompt = (
-                    "Bạn là trợ lý ảo phụ trách viết lại câu hỏi tìm kiếm. "
-                    "Dựa trên lịch sử hội thoại dưới đây và câu hỏi tiếp theo, hãy viết lại câu hỏi tiếp theo thành một câu hỏi độc lập, đầy đủ ngữ nghĩa để tìm kiếm trong cơ sở dữ liệu. "
-                    "Chỉ trả về câu hỏi độc lập mới, KHÔNG trả lời câu hỏi và KHÔNG thêm bất kỳ giải thích nào khác.\n\n"
-                    f"Lịch sử hội thoại:\n{history_str}\n\n"
-                    f"Câu hỏi tiếp theo: {question}\n\n"
-                    "Câu hỏi độc lập viết lại:"
+                rewrite_prompt = cls._rewrite_prompt_template.format(
+                    history=history_str,
+                    question=question
                 )
                 try:
                     rewritten_question = cls._generate_with_key_rotation(db, rewrite_prompt)
