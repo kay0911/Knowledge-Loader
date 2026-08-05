@@ -38,7 +38,7 @@ class RerankService:
         
         try:
             logger.info(f"Sending {len(chunks)} documents to Cohere Rerank API...")
-            response = httpx.post(url, headers=headers, json=payload, timeout=10.0)
+            response = httpx.post(url, headers=headers, json=payload, timeout=10.0, verify=False)
             
             if response.status_code != 200:
                 logger.error(f"Cohere API returned error status {response.status_code}: {response.text}")

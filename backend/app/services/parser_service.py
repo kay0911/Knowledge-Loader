@@ -160,7 +160,62 @@ class ParserService:
 
     @classmethod
     def parse_pdf(cls, file_path: str) -> List[NormalizedBlock]:
-        logger.info(f"Parsing PDF file: {file_path}")
+        logger.info(f"Parsing PDF file with Layout Font-Size Parser: {file_path}")
+        try:
+            import pdfplumber
+            from collections import Counter
+
+            font_sizes = []
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    words = page.extract_words(extra_attrs=['fontname', 'size'])
+                    for w in words:
+                        font_sizes.append(round(w['size'], 1))
+
+                if font_sizes:
+                    base_size = Counter(font_sizes).most_common(1)[0][0]
+                    md_lines = []
+
+                    for page_idx, page in enumerate(pdf.pages):
+                        page_num = page_idx + 1
+                        words = page.extract_words(extra_attrs=['fontname', 'size'])
+                        lines_dict = {}
+                        for w in words:
+                            top = round(w['top'], 1)
+                            matching_top = None
+                            for k in lines_dict:
+                                if abs(k - top) <= 3:
+                                    matching_top = k
+                                    break
+                            if matching_top is None:
+                                matching_top = top
+                                lines_dict[matching_top] = []
+                            lines_dict[matching_top].append(w)
+
+                        for top in sorted(lines_dict.keys()):
+                            line_words = sorted(lines_dict[top], key=lambda x: x['x0'])
+                            line_text = ' '.join([w['text'] for w in line_words]).strip()
+                            if not line_text:
+                                continue
+
+                            avg_size = sum(w['size'] for w in line_words) / len(line_words)
+                            is_bold = any('bold' in w['fontname'].lower() or 'heavy' in w['fontname'].lower() for w in line_words)
+
+                            # Auto-convert font sizes & bold lines to Markdown Headings # and ##
+                            if avg_size >= base_size * 1.4:
+                                md_lines.append(f"# {line_text}")
+                            elif avg_size >= base_size * 1.15 or (is_bold and len(line_text) < 100):
+                                md_lines.append(f"## {line_text}")
+                            else:
+                                md_lines.append(line_text)
+
+                    full_md_text = "\n\n".join(md_lines)
+                    return cls.parse_markdown_content(md_text=full_md_text, source_type="pdf")
+
+        except Exception as err:
+            logger.warning(f"pdfplumber layout parsing failed for {file_path}, falling back to pypdf: {str(err)}")
+
+        # Fallback to pypdf
         blocks: List[NormalizedBlock] = []
         try:
             reader = pypdf.PdfReader(file_path)
@@ -172,7 +227,6 @@ class ParserService:
                 if not text.strip():
                     continue
 
-                # Use MarkItDown on page text if available, or parse text directly
                 page_blocks = cls.parse_markdown_content(
                     md_text=text,
                     source_type="pdf",

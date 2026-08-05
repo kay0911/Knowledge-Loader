@@ -2,7 +2,19 @@ import os
 import re
 import time
 import json
+import ssl
+import urllib3
+import requests
 import uuid as uuid_mod
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+ssl._create_default_https_context = ssl._create_unverified_context
+
+old_merge = requests.Session.merge_environment_settings
+def custom_merge(self, url, proxies, stream, verify, cert):
+    return old_merge(self, url, proxies, stream, False, cert)
+requests.Session.merge_environment_settings = custom_merge
+
 import google.generativeai as genai
 from typing import List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
