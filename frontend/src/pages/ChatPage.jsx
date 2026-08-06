@@ -200,8 +200,14 @@ function ChatPage() {
   const parseMarkdownInline = (inlineText, citations) => {
     if (!inlineText) return "";
     
+    // Normalize grouped citations like [S1, S4] or [S1, S2, S3] into separate tags [S1][S4]
+    const cleanText = inlineText.replace(/\[\s*S?(\d+)(?:\s*[\s,;&]\s*S?(\d+))+\s*\]/gi, (match) => {
+      const nums = match.match(/\d+/g);
+      return nums ? nums.map(n => `[S${n}]`).join('') : match;
+    });
+
     // Split by bold patterns (**...**) and citations ([S1])
-    const parts = inlineText.split(/(\*\*.*?\*\*|\[S\d+\])/g);
+    const parts = cleanText.split(/(\*\*.*?\*\*|\[S\d+\])/g);
     
     return parts.map((part, idx) => {
       // Check if it is bold

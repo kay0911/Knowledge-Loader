@@ -144,6 +144,24 @@ class ChatService:
         """
         cls._configure()
         start_time = time.time()
+
+        # Guardrail: Check for Prompt Injection / System Prompt Leakage attempts
+        if cls._is_prompt_injection(question):
+            refusal_msg = "Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp. Tôi không thể chia sẻ các chỉ thị cấu hình hệ thống. Vui lòng đặt câu hỏi liên quan đến tài liệu nghiệp vụ."
+            resolved_session_id = session_id or str(uuid_mod.uuid4())
+            chat_log = ChatLog(
+                session_id=resolved_session_id,
+                question=question,
+                answer=refusal_msg,
+                retrieved_chunk_ids=[],
+                graph_context=[],
+                citations=[],
+                latency_ms=10
+            )
+            db.add(chat_log)
+            db.commit()
+            db.refresh(chat_log)
+            return chat_log, []
         
         # 1. Prepare history and query rewrite
         history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
@@ -179,6 +197,7 @@ class ChatService:
             
             logger.info("Calling Gemini LLM for Q&A with key rotation...")
             answer = cls._generate_with_key_rotation(db, prompt)
+            answer = cls._normalize_citation_tags(answer)
         except Exception as e:
             logger.error(f"Gemini LLM call failed: {str(e)}", exc_info=True)
             answer = "Đã xảy ra lỗi khi gọi trợ lý AI. Vui lòng thử lại sau."
@@ -265,6 +284,30 @@ class ChatService:
         cls._configure()
         start_time = time.time()
         
+        # Guardrail: Check for Prompt Injection / System Prompt Leakage attempts
+        if cls._is_prompt_injection(question):
+            refusal_msg = "Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp. Tôi không thể chia sẻ các chỉ thị cấu hình hệ thống. Vui lòng đặt câu hỏi liên quan đến tài liệu nghiệp vụ."
+            resolved_session_id = session_id or str(uuid_mod.uuid4())
+            chat_log = ChatLog(
+                session_id=resolved_session_id,
+                question=question,
+                answer=refusal_msg,
+                retrieved_chunk_ids=[],
+                graph_context=[],
+                citations=[],
+                latency_ms=10
+            )
+            try:
+                db.add(chat_log)
+                db.commit()
+                db.refresh(chat_log)
+            except Exception:
+                db.rollback()
+                
+            yield f"data: {json.dumps({'type': 'content', 'content': refusal_msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': []}, ensure_ascii=False)}\n\n"
+            return
+
         # 1. Prepare history and query rewrite
         history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
         
@@ -330,7 +373,8 @@ class ChatService:
         
         # 4. Compile Citations
         citations = []
-        cited_indices = re.findall(r"\[S(\d+)\]", answer)
+        normalized_answer = cls._normalize_citation_tags(answer)
+        cited_indices = re.findall(r"\[S(\d+)\]", normalized_answer)
         cited_nums = {int(idx) - 1 for idx in cited_indices if idx.isdigit()}
         
         for idx in sorted(cited_nums):
@@ -375,3 +419,43 @@ class ChatService:
             
         # 6. Yield metadata at the end of the stream
         yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': citations}, ensure_ascii=False)}\n\n"
+
+    @staticmethod
+    def _normalize_citation_tags(text: str) -> str:
+        """
+        Converts grouped citations like [S1, S4] or [S1, S2, S3] or [S1; S2] into separate tags [S1][S4].
+        Ensures frontend Markdown renderer can parse each source pill correctly.
+        """
+        if not text:
+            return text
+
+        def replacer(match):
+            content = match.group(0)
+            nums = re.findall(r"\d+", content)
+            if nums:
+                return "".join([f"[S{num}]" for num in nums])
+            return content
+
+        pattern = r"\[\s*S?\d+(?:\s*[\s,;&]\s*S?\d+)+\s*\]"
+        return re.sub(pattern, replacer, text, flags=re.IGNORECASE)
+
+    @staticmethod
+    def _is_prompt_injection(question: str) -> bool:
+        """
+        Detects Prompt Injection and System Prompt Leakage attempts in user query.
+        """
+        if not question:
+            return False
+            
+        patterns = [
+            r"(bỏ qua|ignore|override)\s+(tất cả\s+|các\s+)?(chỉ thị|hướng dẫn|quy tắc hệ thống|prompt|system prompt|cấu hình hệ thống|lệnh hệ thống)",
+            r"(bỏ qua|ignore|override)\s+system",
+            r"(hiển thị|in ra|cho tôi biết|cho xem|tiết lộ|trả lời|show|print|reveal|tell me|display)\s+.*(system prompt|chỉ thị hệ thống|cấu hình prompt|prompt hiện tại|lệnh hệ thống)",
+            r"you are now in (dan|jailbreak) mode",
+            r"jailbreak"
+        ]
+        q_lower = question.lower()
+        for p in patterns:
+            if re.search(p, q_lower):
+                return True
+        return False
