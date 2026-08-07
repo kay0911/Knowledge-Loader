@@ -252,22 +252,48 @@ function ChatPage() {
     });
   };
 
-  // Helper function to render text with bullet points and bolding
+  // Helper function to render text with markdown headings, lists, bullet points, and bolding
   const renderMessageText = (text, citations = []) => {
     if (!text) return null;
     const lines = text.split('\n');
     
     return lines.map((line, idx) => {
       let trimmed = line.trim();
+      if (!trimmed) {
+        return <div key={idx} style={{ height: '6px' }} />;
+      }
+
+      // Check for Headings (# H1, ## H2, ### H3, #### H4)
+      const headingMatch = trimmed.match(/^(#{1,4})\s+(.*)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const headingText = headingMatch[2];
+        
+        const fontSizeMap = { 1: '1.3rem', 2: '1.15rem', 3: '1.05rem', 4: '0.95rem' };
+        const fontColorMap = { 1: '#f3f4f6', 2: '#e5e7eb', 3: '#6ee7b7', 4: '#a7f3d0' };
+
+        return (
+          <div key={idx} style={{ 
+            fontSize: fontSizeMap[level] || '1.05rem', 
+            fontWeight: 600, 
+            color: fontColorMap[level] || 'var(--text-color)',
+            marginTop: level === 1 ? '18px' : '12px',
+            marginBottom: '6px',
+            lineHeight: '1.4'
+          }}>
+            {parseMarkdownInline(headingText, citations)}
+          </div>
+        );
+      }
       
-      // Check if list item
+      // Check if bullet list item (* or -)
       if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
         const content = trimmed.substring(2);
         return (
           <div key={idx} style={{ 
             display: 'flex', 
             paddingLeft: '16px', 
-            marginBottom: '8px',
+            marginBottom: '6px',
             alignItems: 'flex-start',
             lineHeight: '1.6',
             color: 'var(--text-color)'
@@ -277,11 +303,31 @@ function ChatPage() {
           </div>
         );
       }
+
+      // Check for Numbered list items (e.g. 1. , 2. )
+      const numMatch = trimmed.match(/^(\d+\.)\s+(.*)$/);
+      if (numMatch) {
+        const numPrefix = numMatch[1];
+        const content = numMatch[2];
+        return (
+          <div key={idx} style={{ 
+            display: 'flex', 
+            paddingLeft: '8px', 
+            marginBottom: '6px',
+            alignItems: 'flex-start',
+            lineHeight: '1.6',
+            color: 'var(--text-color)'
+          }}>
+            <span style={{ marginRight: '8px', color: '#10b981', fontWeight: 600, flexShrink: 0 }}>{numPrefix}</span>
+            <span style={{ flex: 1, color: 'var(--text-color)' }}>{parseMarkdownInline(content, citations)}</span>
+          </div>
+        );
+      }
       
       // Plain paragraph
       return (
         <p key={idx} style={{ 
-          marginBottom: '10px', 
+          marginBottom: '8px', 
           lineHeight: '1.6',
           minHeight: '1em',
           color: 'var(--text-color)'
