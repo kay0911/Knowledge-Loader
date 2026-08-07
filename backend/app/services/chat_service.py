@@ -22,6 +22,10 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.models.chat import ChatLog
 from app.services.retrieval_service import RetrievalService
+from app.services.cache_service import CacheService
+from app.services.intent_router_service import IntentRouterService
+from app.services.query_decomposer_service import QueryDecomposerService
+from app.services.output_guardrail_service import OutputGuardrailService
 
 class ChatService:
     _configured = False
@@ -162,12 +166,60 @@ class ChatService:
             db.commit()
             db.refresh(chat_log)
             return chat_log, []
+
+        # Intent Router (Chitchat / Out-of-Domain)
+        intent, direct_reply = IntentRouterService.route_intent(question)
+        if intent != "DOMAIN_QUERY" and direct_reply:
+            resolved_session_id = session_id or str(uuid_mod.uuid4())
+            chat_log = ChatLog(
+                session_id=resolved_session_id,
+                question=question,
+                answer=direct_reply,
+                retrieved_chunk_ids=[],
+                graph_context=[],
+                citations=[],
+                latency_ms=15
+            )
+            db.add(chat_log)
+            db.commit()
+            db.refresh(chat_log)
+            return chat_log, []
+
+        # Semantic Cache Check
+        cached_result = CacheService.get_semantic_cache(db, question)
+        if cached_result:
+            cached_ans, cached_cits = cached_result
+            resolved_session_id = session_id or str(uuid_mod.uuid4())
+            chat_log = ChatLog(
+                session_id=resolved_session_id,
+                question=question,
+                answer=cached_ans,
+                retrieved_chunk_ids=[],
+                graph_context=[],
+                citations=cached_cits,
+                latency_ms=25
+            )
+            db.add(chat_log)
+            db.commit()
+            db.refresh(chat_log)
+            return chat_log, cached_cits
         
         # 1. Prepare history and query rewrite
         history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
         
-        # 2. Retrieve hybrid chunks using rewritten question
-        chunks, graph_relationships = RetrievalService.retrieve_hybrid(db, query_for_retrieval)
+        # 2. Query Decomposition & Parallel Retrieval Engine
+        sub_queries = QueryDecomposerService.decompose_query(query_for_retrieval)
+        chunks = []
+        graph_relationships = []
+        seen_ids = set()
+
+        for sub_q in sub_queries:
+            sub_chunks, sub_rels = RetrievalService.retrieve_hybrid(db, sub_q)
+            for c in sub_chunks:
+                if c.id not in seen_ids:
+                    seen_ids.add(c.id)
+                    chunks.append(c)
+            graph_relationships.extend(sub_rels)
         
         # 2. Format Context
         context_blocks = []
@@ -252,7 +304,10 @@ class ChatService:
                         "snippet": snippet
                     })
 
-        # 5. Record to PostgreSQL
+        # 5. Output Guardrail Sanitation & Citation Check
+        answer = OutputGuardrailService.validate_and_sanitize(answer, citations)
+
+        # 6. Record to PostgreSQL
         resolved_session_id = session_id or str(uuid_mod.uuid4())
         chat_log = ChatLog(
             session_id=resolved_session_id,
@@ -308,11 +363,71 @@ class ChatService:
             yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': []}, ensure_ascii=False)}\n\n"
             return
 
+        # Intent Router (Chitchat / Out-of-Domain)
+        intent, direct_reply = IntentRouterService.route_intent(question)
+        if intent != "DOMAIN_QUERY" and direct_reply:
+            resolved_session_id = session_id or str(uuid_mod.uuid4())
+            chat_log = ChatLog(
+                session_id=resolved_session_id,
+                question=question,
+                answer=direct_reply,
+                retrieved_chunk_ids=[],
+                graph_context=[],
+                citations=[],
+                latency_ms=15
+            )
+            try:
+                db.add(chat_log)
+                db.commit()
+                db.refresh(chat_log)
+            except Exception:
+                db.rollback()
+
+            yield f"data: {json.dumps({'type': 'content', 'content': direct_reply}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': []}, ensure_ascii=False)}\n\n"
+            return
+
+        # Semantic Cache Check
+        cached_result = CacheService.get_semantic_cache(db, question)
+        if cached_result:
+            cached_ans, cached_cits = cached_result
+            resolved_session_id = session_id or str(uuid_mod.uuid4())
+            chat_log = ChatLog(
+                session_id=resolved_session_id,
+                question=question,
+                answer=cached_ans,
+                retrieved_chunk_ids=[],
+                graph_context=[],
+                citations=cached_cits,
+                latency_ms=25
+            )
+            try:
+                db.add(chat_log)
+                db.commit()
+                db.refresh(chat_log)
+            except Exception:
+                db.rollback()
+
+            yield f"data: {json.dumps({'type': 'content', 'content': cached_ans}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': cached_cits}, ensure_ascii=False)}\n\n"
+            return
+
         # 1. Prepare history and query rewrite
         history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
         
-        # 2. Retrieve hybrid chunks using rewritten question
-        chunks, graph_relationships = RetrievalService.retrieve_hybrid(db, query_for_retrieval)
+        # 2. Query Decomposition & Parallel Retrieval Engine
+        sub_queries = QueryDecomposerService.decompose_query(query_for_retrieval)
+        chunks = []
+        graph_relationships = []
+        seen_ids = set()
+
+        for sub_q in sub_queries:
+            sub_chunks, sub_rels = RetrievalService.retrieve_hybrid(db, sub_q)
+            for c in sub_chunks:
+                if c.id not in seen_ids:
+                    seen_ids.add(c.id)
+                    chunks.append(c)
+            graph_relationships.extend(sub_rels)
         
         # 2. Format Context
         context_blocks = []

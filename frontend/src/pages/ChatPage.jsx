@@ -206,18 +206,27 @@ function ChatPage() {
       return nums ? nums.map(n => `[S${n}]`).join('') : match;
     });
 
-    // Split by bold patterns (**...**) and citations ([S1])
-    const parts = cleanText.split(/(\*\*.*?\*\*|\[S\d+\])/g);
+    // Split by bold patterns (**...**), italics (*...* or _..._), and citations ([S1])
+    const parts = cleanText.split(/(\*\*.*?\*\*|\*.*?\*|_.*?_|\[S\d+\])/gi);
     
     return parts.map((part, idx) => {
-      // Check if it is bold
-      if (part.startsWith('**') && part.endsWith('**')) {
+      if (!part) return null;
+
+      // Check if bold (**...**)
+      if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
         const innerText = part.slice(2, -2);
         return <strong key={idx} style={{ color: 'var(--text-color)', fontWeight: 600 }}>{parseMarkdownInline(innerText, citations)}</strong>;
       }
+
+      // Check if italic (*...* or _..._)
+      if ((part.startsWith('*') && part.endsWith('*') && part.length >= 2) ||
+          (part.startsWith('_') && part.endsWith('_') && part.length >= 2)) {
+        const innerText = part.slice(1, -1);
+        return <em key={idx} style={{ fontStyle: 'italic', color: '#d1d5db' }}>{parseMarkdownInline(innerText, citations)}</em>;
+      }
       
-      // Check if it is citation tag
-      const match = part.match(/^\[S(\d+)\]$/);
+      // Check if citation tag ([S1])
+      const match = part.match(/^\[S(\d+)\]$/i);
       if (match) {
         const num = match[1];
         const citation = citations.find(c => c.source_id === `S${num}`);
@@ -252,15 +261,66 @@ function ChatPage() {
     });
   };
 
-  // Helper function to render text with markdown headings, lists, bullet points, and bolding
+  // Helper function to render text with markdown tables, headings, lists, bullet points, and bold/italics
   const renderMessageText = (text, citations = []) => {
     if (!text) return null;
     const lines = text.split('\n');
+    const elements = [];
+    let idx = 0;
     
-    return lines.map((line, idx) => {
-      let trimmed = line.trim();
+    while (idx < lines.length) {
+      const line = lines[idx];
+      const trimmed = line.trim();
+
+      // Check if start of Markdown Table (line contains '|' and separator line contains '|' and '-')
+      const isTableSeparator = (str) => str && str.includes('|') && str.includes('-');
+      if (trimmed.startsWith('|') && idx + 1 < lines.length && isTableSeparator(lines[idx+1])) {
+        const tableLines = [];
+        while (idx < lines.length && lines[idx].trim().startsWith('|')) {
+          tableLines.push(lines[idx].trim());
+          idx++;
+        }
+
+        // Parse Table Header & Rows
+        const headerCells = tableLines[0].split('|').slice(1, -1).map(c => c.trim());
+        const rowLines = tableLines.slice(2); // Skip separator line tableLines[1]
+
+        elements.push(
+          <div key={`table-${idx}`} style={{ overflowX: 'auto', margin: '14px 0', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: 'rgba(16, 185, 129, 0.15)', borderBottom: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                  {headerCells.map((cell, cIdx) => (
+                    <th key={cIdx} style={{ padding: '10px 14px', fontWeight: 600, color: '#34d399' }}>
+                      {parseMarkdownInline(cell, citations)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rowLines.map((rowStr, rIdx) => {
+                  const rowCells = rowStr.split('|').slice(1, -1).map(c => c.trim());
+                  return (
+                    <tr key={rIdx} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: rIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                      {rowCells.map((cell, cIdx) => (
+                        <td key={cIdx} style={{ padding: '10px 14px', color: 'var(--text-color)', lineHeight: '1.5' }}>
+                          {parseMarkdownInline(cell, citations)}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+
       if (!trimmed) {
-        return <div key={idx} style={{ height: '6px' }} />;
+        elements.push(<div key={`blank-${idx}`} style={{ height: '6px' }} />);
+        idx++;
+        continue;
       }
 
       // Check for Headings (# H1, ## H2, ### H3, #### H4)
@@ -268,12 +328,11 @@ function ChatPage() {
       if (headingMatch) {
         const level = headingMatch[1].length;
         const headingText = headingMatch[2];
-        
         const fontSizeMap = { 1: '1.3rem', 2: '1.15rem', 3: '1.05rem', 4: '0.95rem' };
         const fontColorMap = { 1: '#f3f4f6', 2: '#e5e7eb', 3: '#6ee7b7', 4: '#a7f3d0' };
 
-        return (
-          <div key={idx} style={{ 
+        elements.push(
+          <div key={`h-${idx}`} style={{ 
             fontSize: fontSizeMap[level] || '1.05rem', 
             fontWeight: 600, 
             color: fontColorMap[level] || 'var(--text-color)',
@@ -284,13 +343,15 @@ function ChatPage() {
             {parseMarkdownInline(headingText, citations)}
           </div>
         );
+        idx++;
+        continue;
       }
-      
+
       // Check if bullet list item (* or -)
       if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
         const content = trimmed.substring(2);
-        return (
-          <div key={idx} style={{ 
+        elements.push(
+          <div key={`li-${idx}`} style={{ 
             display: 'flex', 
             paddingLeft: '16px', 
             marginBottom: '6px',
@@ -302,6 +363,8 @@ function ChatPage() {
             <span style={{ flex: 1, color: 'var(--text-color)' }}>{parseMarkdownInline(content, citations)}</span>
           </div>
         );
+        idx++;
+        continue;
       }
 
       // Check for Numbered list items (e.g. 1. , 2. )
@@ -309,8 +372,8 @@ function ChatPage() {
       if (numMatch) {
         const numPrefix = numMatch[1];
         const content = numMatch[2];
-        return (
-          <div key={idx} style={{ 
+        elements.push(
+          <div key={`num-${idx}`} style={{ 
             display: 'flex', 
             paddingLeft: '8px', 
             marginBottom: '6px',
@@ -322,11 +385,13 @@ function ChatPage() {
             <span style={{ flex: 1, color: 'var(--text-color)' }}>{parseMarkdownInline(content, citations)}</span>
           </div>
         );
+        idx++;
+        continue;
       }
-      
+
       // Plain paragraph
-      return (
-        <p key={idx} style={{ 
+      elements.push(
+        <p key={`p-${idx}`} style={{ 
           marginBottom: '8px', 
           lineHeight: '1.6',
           minHeight: '1em',
@@ -335,7 +400,10 @@ function ChatPage() {
           {parseMarkdownInline(line, citations)}
         </p>
       );
-    });
+      idx++;
+    }
+
+    return elements;
   };
 
   return (

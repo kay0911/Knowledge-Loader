@@ -1,3 +1,4 @@
+import concurrent.futures
 from typing import List, Tuple, Dict, Any
 from sqlalchemy.orm import Session, joinedload
 from app.db.neo4j import neo4j_client
@@ -15,84 +16,116 @@ class RetrievalService:
         query: str
     ) -> Tuple[List[DocumentChunk], List[Dict[str, Any]]]:
         """
-        Retrieves context chunks using a Hybrid Search pipeline:
-        1. Semantic Search (pgvector)
-        2. Keyword Search (BM25)
-        3. Graph-augmented Search (Neo4j entity traversal)
-        Deduplicates, reranks via Cohere, and returns top chunks and graph context.
+        Retrieves context chunks using a Parallel Hybrid Search & RRF Fusion pipeline:
+        1. Parallel Execution of Semantic Search, BM25, and Neo4j Graph Search via ThreadPoolExecutor.
+        2. Reciprocal Rank Fusion (RRF) to score & rank candidates.
+        3. Reranking via Cohere Cross-Encoder.
         """
-        logger.info(f"Starting hybrid retrieval for query: '{query}'")
+        logger.info(f"Starting parallel hybrid retrieval for query: '{query}'")
         
-        # 1. Semantic Search (pgvector)
-        semantic_chunks = []
-        try:
-            query_embedding = EmbeddingService.get_embedding(query)
-            # Fetch top 10 chunks based on pgvector cosine distance
-            semantic_chunks = db.query(DocumentChunk).options(
-                joinedload(DocumentChunk.document)
-            ).join(
-                Document, Document.id == DocumentChunk.document_id
-            ).filter(
-                DocumentChunk.is_active == True,
-                Document.status == "READY",
-                Document.is_enabled == True,
-                DocumentChunk.embedding.isnot(None)
-            ).order_by(
-                DocumentChunk.embedding.cosine_distance(query_embedding)
-            ).limit(10).all()
-            logger.info(f"Semantic search retrieved {len(semantic_chunks)} chunks.")
-        except Exception as e:
-            logger.error(f"Semantic search failed: {str(e)}", exc_info=True)
+        semantic_chunks: List[DocumentChunk] = []
+        bm25_chunks: List[DocumentChunk] = []
+        graph_chunks: List[DocumentChunk] = []
+        graph_relationships: List[Dict[str, Any]] = []
 
-        # 2. Keyword Search (BM25)
-        bm25_chunks = []
-        try:
-            bm25_chunks = BM25Service.search(query, top_k=10)
-            logger.info(f"BM25 search retrieved {len(bm25_chunks)} chunks.")
-        except Exception as e:
-            logger.error(f"BM25 search failed: {str(e)}", exc_info=True)
+        def task_semantic():
+            try:
+                query_embedding = EmbeddingService.get_embedding(query)
+                return db.query(DocumentChunk).options(
+                    joinedload(DocumentChunk.document)
+                ).join(
+                    Document, Document.id == DocumentChunk.document_id
+                ).filter(
+                    DocumentChunk.is_active == True,
+                    Document.status == "READY",
+                    Document.is_enabled == True,
+                    DocumentChunk.embedding.isnot(None)
+                ).order_by(
+                    DocumentChunk.embedding.cosine_distance(query_embedding)
+                ).limit(10).all()
+            except Exception as e:
+                logger.error(f"Parallel Semantic search failed: {str(e)}", exc_info=True)
+                return []
 
-        # 3. Graph-augmented Search (Neo4j)
-        graph_chunks = []
-        graph_relationships = []
-        try:
-            detected_entities = cls._detect_entities_in_query(query)
-            if detected_entities:
+        def task_bm25():
+            try:
+                return BM25Service.search(query, top_k=10)
+            except Exception as e:
+                logger.error(f"Parallel BM25 search failed: {str(e)}", exc_info=True)
+                return []
+
+        def task_graph():
+            try:
+                detected_entities = cls._detect_entities_in_query(query)
+                if not detected_entities:
+                    return [], []
                 logger.info(f"Detected entities in query: {detected_entities}")
-                chunk_ids, graph_relationships = cls._traverse_graph_for_entities(detected_entities)
-                if chunk_ids:
-                    # Retrieve the actual chunk contents from PostgreSQL
-                    graph_chunks = db.query(DocumentChunk).options(
-                        joinedload(DocumentChunk.document)
-                    ).join(
-                        Document, Document.id == DocumentChunk.document_id
-                    ).filter(
-                        DocumentChunk.id.in_(chunk_ids),
-                        DocumentChunk.is_active == True,
-                        Document.status == "READY",
-                        Document.is_enabled == True
-                    ).all()
-                    logger.info(f"Graph retrieval resolved {len(graph_chunks)} chunks from Neo4j evidence.")
-        except Exception as e:
-            logger.error(f"Graph-augmented search failed: {str(e)}", exc_info=True)
+                chunk_ids, rels = cls._traverse_graph_for_entities(detected_entities)
+                if not chunk_ids:
+                    return [], rels
+                chunks = db.query(DocumentChunk).options(
+                    joinedload(DocumentChunk.document)
+                ).join(
+                    Document, Document.id == DocumentChunk.document_id
+                ).filter(
+                    DocumentChunk.id.in_(chunk_ids),
+                    DocumentChunk.is_active == True,
+                    Document.status == "READY",
+                    Document.is_enabled == True
+                ).all()
+                return chunks, rels
+            except Exception as e:
+                logger.error(f"Parallel Graph search failed: {str(e)}", exc_info=True)
+                return [], []
 
-        # 4. Merge and Deduplicate candidates
-        all_candidates = []
-        seen_ids = set()
+        # Execute 3 retrieval tasks in parallel threads
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            future_sem = executor.submit(task_semantic)
+            future_bm25 = executor.submit(task_bm25)
+            future_graph = executor.submit(task_graph)
+
+            semantic_chunks = future_sem.result()
+            bm25_chunks = future_bm25.result()
+            graph_chunks, graph_relationships = future_graph.result()
+
+        logger.info(f"Parallel retrieval results -> Semantic: {len(semantic_chunks)}, BM25: {len(bm25_chunks)}, Graph: {len(graph_chunks)}")
+
+        # Merge & Rank candidates using Reciprocal Rank Fusion (RRF)
+        fused_candidates = cls._apply_rrf_fusion(semantic_chunks, bm25_chunks, graph_chunks)
+        logger.info(f"Total unique RRF-fused candidate chunks: {len(fused_candidates)}")
         
-        # Priority order for initial inclusion: Graph, Semantic, Keyword
-        for chunk in (graph_chunks + semantic_chunks + bm25_chunks):
-            if chunk.id not in seen_ids:
-                seen_ids.add(chunk.id)
-                all_candidates.append(chunk)
-                
-        logger.info(f"Total unique candidate chunks gathered: {len(all_candidates)}")
-        
-        # 5. Cohere Reranking
-        reranked_chunks = RerankService.rerank(query, all_candidates)
+        # Cohere Reranking
+        reranked_chunks = RerankService.rerank(query, fused_candidates)
         logger.info(f"Final reranked search returned {len(reranked_chunks)} context chunks.")
         
         return reranked_chunks, graph_relationships
+
+    @staticmethod
+    def _apply_rrf_fusion(
+        semantic_chunks: List[DocumentChunk],
+        bm25_chunks: List[DocumentChunk],
+        graph_chunks: List[DocumentChunk],
+        k: int = 60
+    ) -> List[DocumentChunk]:
+        """
+        Applies Reciprocal Rank Fusion (RRF) algorithm to rank candidates from multiple retrievers.
+        RRF_score(d) = sum(1 / (k + rank_m(d)))
+        """
+        scores: Dict[str, float] = {}
+        chunk_map: Dict[str, DocumentChunk] = {}
+
+        def add_ranks(chunks: List[DocumentChunk]):
+            for rank, chunk in enumerate(chunks, start=1):
+                c_id = str(chunk.id)
+                chunk_map[c_id] = chunk
+                scores[c_id] = scores.get(c_id, 0.0) + (1.0 / (k + rank))
+
+        add_ranks(semantic_chunks)
+        add_ranks(bm25_chunks)
+        add_ranks(graph_chunks)
+
+        sorted_ids = sorted(scores.keys(), key=lambda cid: scores[cid], reverse=True)
+        return [chunk_map[cid] for cid in sorted_ids]
 
     @staticmethod
     def _detect_entities_in_query(query: str) -> List[str]:
