@@ -6,7 +6,7 @@ from app.models.document import DocumentChunk
 
 class RerankService:
     @classmethod
-    def rerank(cls, query: str, chunks: List[DocumentChunk]) -> List[DocumentChunk]:
+    def rerank(cls, query: str, chunks: List[DocumentChunk], top_n: int = None) -> List[DocumentChunk]:
         """
         Rank chunks using Cohere Rerank API based on query relevance.
         Falls back to original order if API call fails or COHERE_API_KEY is missing.
@@ -14,10 +14,12 @@ class RerankService:
         if not chunks:
             return []
             
+        limit = top_n or settings.RERANK_TOP_K
+
         api_key = settings.COHERE_API_KEY
         if not api_key or api_key == "your_cohere_api_key_here":
             logger.warning("COHERE_API_KEY is not configured. Skipping Cohere Rerank and returning original order.")
-            return chunks[:settings.RERANK_TOP_K]
+            return chunks[:limit]
             
         # Extract text content from each chunk
         documents_text = [chunk.content for chunk in chunks]
@@ -33,16 +35,16 @@ class RerankService:
             "model": settings.COHERE_RERANK_MODEL,
             "query": query,
             "documents": documents_text,
-            "top_n": settings.RERANK_TOP_K
+            "top_n": limit
         }
         
         try:
-            logger.info(f"Sending {len(chunks)} documents to Cohere Rerank API...")
+            logger.info(f"Sending {len(chunks)} documents to Cohere Rerank API (top_n={limit})...")
             response = httpx.post(url, headers=headers, json=payload, timeout=10.0, verify=False)
             
             if response.status_code != 200:
                 logger.error(f"Cohere API returned error status {response.status_code}: {response.text}")
-                return chunks[:settings.RERANK_TOP_K]
+                return chunks[:limit]
                 
             data = response.json()
             results = data.get("results", [])

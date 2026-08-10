@@ -26,6 +26,7 @@ from app.services.cache_service import CacheService
 from app.services.intent_router_service import IntentRouterService
 from app.services.query_decomposer_service import QueryDecomposerService
 from app.services.output_guardrail_service import OutputGuardrailService
+from app.services.query_understanding_service import QueryUnderstandingService
 
 class ChatService:
     _configured = False
@@ -139,53 +140,17 @@ class ChatService:
     @classmethod
     def ask(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False) -> Tuple[ChatLog, List[Dict[str, Any]]]:
         """
-        Run the Q&A pipeline:
-        1. Run hybrid retrieval to get top relevant context chunks.
-        2. Format prompt context with Source IDs (e.g. S1, S2...).
-        3. Call Gemini LLM to generate cited response.
-        4. Compile citation details based on referenced source codes.
-        5. Log interaction details to the Postgres database.
+        Main Q&A Pipeline:
+        1. Fast Guardrail: Semantic Cache Check
+        2. LLM Semantic Query Understanding Pass (Intent Router + Anti-Injection + Sub-query Decomposition)
+        3. Parallel Retrieval Engine per Sub-query (Dense pgvector + Sparse BM25 + Neo4j Graph) & RRF Fusion
+        4. Gemini LLM Q&A Generation
+        5. Output Guardrail Sanitation & Citation Verification
         """
         cls._configure()
         start_time = time.time()
 
-        # Guardrail: Check for Prompt Injection / System Prompt Leakage attempts
-        if cls._is_prompt_injection(question):
-            refusal_msg = "Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp. Tôi không thể chia sẻ các chỉ thị cấu hình hệ thống. Vui lòng đặt câu hỏi liên quan đến tài liệu nghiệp vụ."
-            resolved_session_id = session_id or str(uuid_mod.uuid4())
-            chat_log = ChatLog(
-                session_id=resolved_session_id,
-                question=question,
-                answer=refusal_msg,
-                retrieved_chunk_ids=[],
-                graph_context=[],
-                citations=[],
-                latency_ms=10
-            )
-            db.add(chat_log)
-            db.commit()
-            db.refresh(chat_log)
-            return chat_log, []
-
-        # Intent Router (Chitchat / Out-of-Domain)
-        intent, direct_reply = IntentRouterService.route_intent(question)
-        if intent != "DOMAIN_QUERY" and direct_reply:
-            resolved_session_id = session_id or str(uuid_mod.uuid4())
-            chat_log = ChatLog(
-                session_id=resolved_session_id,
-                question=question,
-                answer=direct_reply,
-                retrieved_chunk_ids=[],
-                graph_context=[],
-                citations=[],
-                latency_ms=15
-            )
-            db.add(chat_log)
-            db.commit()
-            db.refresh(chat_log)
-            return chat_log, []
-
-        # Semantic Cache Check
+        # 1. Fast Guardrail: Semantic Cache Check
         cached_result = CacheService.get_semantic_cache(db, question)
         if cached_result:
             cached_ans, cached_cits = cached_result
@@ -197,18 +162,41 @@ class ChatService:
                 retrieved_chunk_ids=[],
                 graph_context=[],
                 citations=cached_cits,
-                latency_ms=25
+                latency_ms=int((time.time() - start_time) * 1000)
             )
             db.add(chat_log)
             db.commit()
             db.refresh(chat_log)
             return chat_log, cached_cits
+
+        # 2. LLM Semantic Query Understanding Pass
+        analysis = QueryUnderstandingService.analyze_query(db, question)
+        intent = analysis.get("intent", "DOMAIN_QUERY")
+        is_injection = analysis.get("is_prompt_injection", False)
+        direct_reply = analysis.get("direct_reply")
+        sub_queries = analysis.get("sub_queries") or [question]
+
+        if is_injection or intent != "DOMAIN_QUERY":
+            reply = direct_reply or "Xin chào! Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp."
+            resolved_session_id = session_id or str(uuid_mod.uuid4())
+            chat_log = ChatLog(
+                session_id=resolved_session_id,
+                question=question,
+                answer=reply,
+                retrieved_chunk_ids=[],
+                graph_context=[],
+                citations=[],
+                latency_ms=int((time.time() - start_time) * 1000)
+            )
+            db.add(chat_log)
+            db.commit()
+            db.refresh(chat_log)
+            return chat_log, []
         
-        # 1. Prepare history and query rewrite
+        # 3. Prepare history and query rewrite
         history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
         
-        # 2. Query Decomposition & Parallel Retrieval Engine
-        sub_queries = QueryDecomposerService.decompose_query(query_for_retrieval)
+        # 4. Multi-query Parallel Retrieval Engine
         chunks = []
         graph_relationships = []
         seen_ids = set()
@@ -339,55 +327,7 @@ class ChatService:
         cls._configure()
         start_time = time.time()
         
-        # Guardrail: Check for Prompt Injection / System Prompt Leakage attempts
-        if cls._is_prompt_injection(question):
-            refusal_msg = "Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp. Tôi không thể chia sẻ các chỉ thị cấu hình hệ thống. Vui lòng đặt câu hỏi liên quan đến tài liệu nghiệp vụ."
-            resolved_session_id = session_id or str(uuid_mod.uuid4())
-            chat_log = ChatLog(
-                session_id=resolved_session_id,
-                question=question,
-                answer=refusal_msg,
-                retrieved_chunk_ids=[],
-                graph_context=[],
-                citations=[],
-                latency_ms=10
-            )
-            try:
-                db.add(chat_log)
-                db.commit()
-                db.refresh(chat_log)
-            except Exception:
-                db.rollback()
-                
-            yield f"data: {json.dumps({'type': 'content', 'content': refusal_msg}, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': []}, ensure_ascii=False)}\n\n"
-            return
-
-        # Intent Router (Chitchat / Out-of-Domain)
-        intent, direct_reply = IntentRouterService.route_intent(question)
-        if intent != "DOMAIN_QUERY" and direct_reply:
-            resolved_session_id = session_id or str(uuid_mod.uuid4())
-            chat_log = ChatLog(
-                session_id=resolved_session_id,
-                question=question,
-                answer=direct_reply,
-                retrieved_chunk_ids=[],
-                graph_context=[],
-                citations=[],
-                latency_ms=15
-            )
-            try:
-                db.add(chat_log)
-                db.commit()
-                db.refresh(chat_log)
-            except Exception:
-                db.rollback()
-
-            yield f"data: {json.dumps({'type': 'content', 'content': direct_reply}, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': []}, ensure_ascii=False)}\n\n"
-            return
-
-        # Semantic Cache Check
+        # 1. Fast Guardrail: Semantic Cache Check
         cached_result = CacheService.get_semantic_cache(db, question)
         if cached_result:
             cached_ans, cached_cits = cached_result
@@ -410,6 +350,36 @@ class ChatService:
 
             yield f"data: {json.dumps({'type': 'content', 'content': cached_ans}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': cached_cits}, ensure_ascii=False)}\n\n"
+            return
+
+        # 2. LLM Semantic Query Understanding Pass
+        analysis = QueryUnderstandingService.analyze_query(db, question)
+        intent = analysis.get("intent", "DOMAIN_QUERY")
+        is_injection = analysis.get("is_prompt_injection", False)
+        direct_reply = analysis.get("direct_reply")
+        sub_queries = analysis.get("sub_queries") or [question]
+
+        if is_injection or intent != "DOMAIN_QUERY":
+            reply = direct_reply or "Xin chào! Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp."
+            resolved_session_id = session_id or str(uuid_mod.uuid4())
+            chat_log = ChatLog(
+                session_id=resolved_session_id,
+                question=question,
+                answer=reply,
+                retrieved_chunk_ids=[],
+                graph_context=[],
+                citations=[],
+                latency_ms=int((time.time() - start_time) * 1000)
+            )
+            try:
+                db.add(chat_log)
+                db.commit()
+                db.refresh(chat_log)
+            except Exception:
+                db.rollback()
+
+            yield f"data: {json.dumps({'type': 'content', 'content': reply}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': []}, ensure_ascii=False)}\n\n"
             return
 
         # 1. Prepare history and query rewrite

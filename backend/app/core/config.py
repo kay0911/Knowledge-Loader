@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # Cohere Settings
     COHERE_API_KEY: str = os.getenv("COHERE_API_KEY", "")
     COHERE_RERANK_MODEL: str = os.getenv("COHERE_RERANK_MODEL", "rerank-multilingual-v3.0")
-    RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", 8))
+    RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", 5))
 
     # Mock Mode for Performance Benchmark / Load Testing
     MOCK_AI_SERVICES: bool = os.getenv("MOCK_AI_SERVICES", "false").lower() in ("true", "1", "yes")
