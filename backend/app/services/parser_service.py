@@ -201,10 +201,17 @@ class ParserService:
                             avg_size = sum(w['size'] for w in line_words) / len(line_words)
                             is_bold = any('bold' in w['fontname'].lower() or 'heavy' in w['fontname'].lower() for w in line_words)
 
-                            # Auto-convert font sizes & bold lines to Markdown Headings # and ##
-                            if avg_size >= base_size * 1.4:
+                            # Multi-Criteria Heading Promotion Engine (Font Size, ALL CAPS, Structural Heading Patterns)
+                            heading_pattern = re.compile(
+                                r"^(vụ việc:|mục\s+\d+|điều\s+\d+|chương\s+\d+|phần\s+\d+|báo cáo:|quy định:|quyết định:|hướng dẫn:|\d+\.|\d+\.\d+|[A-Z]\.|\b[I|V|X]+\.)\b",
+                                re.IGNORECASE
+                            )
+                            is_all_caps = line_text.isupper() and 3 < len(line_text) < 120
+                            is_title_pattern = bool(heading_pattern.search(line_text)) and len(line_text) < 120
+
+                            if avg_size >= base_size * 1.35 or is_all_caps:
                                 md_lines.append(f"# {line_text}")
-                            elif avg_size >= base_size * 1.15 or (is_bold and len(line_text) < 100):
+                            elif avg_size >= base_size * 1.15 or is_bold or is_title_pattern:
                                 md_lines.append(f"## {line_text}")
                             else:
                                 md_lines.append(line_text)

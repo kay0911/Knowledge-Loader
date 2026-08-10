@@ -60,7 +60,7 @@ class ChunkingService:
         current_page_start: Optional[int] = None
         current_page_end: Optional[int] = None
 
-        def flush_chunk():
+        def flush_chunk(is_section_boundary: bool = False):
             nonlocal current_content_parts, current_len, active_chunk_heading_path, current_heading_path, current_page_start, current_page_end
             if not current_content_parts:
                 return
@@ -103,31 +103,43 @@ class ChunkingService:
                     "row_end": None
                 })
 
-            # Overlap handling: retain trailing content up to OVERLAP_CHARS
-            overlap_parts = []
-            overlap_size = 0
-            for part in reversed(current_content_parts):
-                if overlap_size + len(part) <= cls.OVERLAP_CHARS:
-                    overlap_parts.insert(0, part)
-                    overlap_size += len(part)
-                else:
-                    break
-
-            current_content_parts = overlap_parts
-            current_len = sum(len(p) for p in current_content_parts)
-            if not current_content_parts:
+            # Overlap handling: If section boundary, DO NOT overlap bleeding from previous section!
+            if is_section_boundary:
+                current_content_parts = []
+                current_len = 0
                 active_chunk_heading_path = []
                 current_page_start = None
                 current_page_end = None
+            else:
+                overlap_parts = []
+                overlap_size = 0
+                for part in reversed(current_content_parts):
+                    if overlap_size + len(part) <= cls.OVERLAP_CHARS:
+                        overlap_parts.insert(0, part)
+                        overlap_size += len(part)
+                    else:
+                        break
+
+                current_content_parts = overlap_parts
+                current_len = sum(len(p) for p in current_content_parts)
+                if not current_content_parts:
+                    active_chunk_heading_path = []
+                    current_page_start = None
+                    current_page_end = None
+
+        item_pattern = re.compile(r"^(vụ việc:|mục\s+\d+|điều\s+\d+|chương\s+\d+|phần\s+\d+)\b", re.IGNORECASE)
 
         for block in blocks:
             text = block.content.strip()
             if not text:
                 continue
 
-            # If encountering a new heading block and buffer already has text, flush preceding section first!
-            if block.block_type == "heading" and current_content_parts:
-                flush_chunk()
+            # Check if this block is a new heading or top-level item title
+            is_new_section_title = block.block_type == "heading" or (item_pattern.search(text) and not any(p.startswith(text[:15]) for p in current_content_parts))
+
+            # Flush preceding section ONLY when encountering a NEW section title!
+            if is_new_section_title and current_content_parts:
+                flush_chunk(is_section_boundary=True)
 
             if block.heading_path:
                 current_heading_path = list(block.heading_path)

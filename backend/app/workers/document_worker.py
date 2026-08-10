@@ -22,6 +22,8 @@ def process_job(db: Session, job: ProcessingJob):
         
         doc = db.query(Document).filter(Document.id == job.document_id).first()
         version = db.query(DocumentVersion).filter(DocumentVersion.id == job.document_version_id).first()
+        if not version and doc:
+            version = db.query(DocumentVersion).filter(DocumentVersion.document_id == doc.id, DocumentVersion.is_active == True).first()
         
         if doc:
             doc.status = "PROCESSING"
