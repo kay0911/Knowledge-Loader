@@ -200,6 +200,49 @@ class GraphService:
         )
 
     @classmethod
+    def remove_invalidated_chunk_evidence(cls, chunk_ids: List[str]):
+        """
+        Delete relationships associated with specific invalidated chunk IDs,
+        then clean up any orphan entities left without connections.
+        """
+        if not chunk_ids:
+            return
+        logger.info(f"Removing Neo4j graph evidence for {len(chunk_ids)} invalidated chunks...")
+        with neo4j_client.get_session() as session:
+            try:
+                session.execute_write(cls._remove_invalidated_chunk_evidence_tx, chunk_ids)
+                logger.info(f"Successfully cleaned up graph evidence for {len(chunk_ids)} chunks.")
+            except Exception as e:
+                logger.error(f"Error removing graph evidence for invalidated chunks: {str(e)}")
+
+    @staticmethod
+    def _remove_invalidated_chunk_evidence_tx(tx, chunk_ids: List[str]):
+        tx.run(
+            """
+            MATCH ()-[r:RELATED_TO]->()
+            WHERE r.chunk_id IN $chunk_ids
+            DELETE r
+            """,
+            chunk_ids=chunk_ids
+        )
+        tx.run(
+            """
+            MATCH ()-[r:MENTIONS]->()
+            WHERE r.chunk_id IN $chunk_ids
+            DELETE r
+            """,
+            chunk_ids=chunk_ids
+        )
+        # Clean up isolated Entity nodes
+        tx.run(
+            """
+            MATCH (e:Entity)
+            WHERE NOT (e)-[:RELATED_TO]-() AND NOT ()-[:MENTIONS]->(e)
+            DELETE e
+            """
+        )
+
+    @classmethod
     def remove_old_versions_evidence(cls, document_id: str, active_version_id: str):
         """
         Delete all relationships (mentions, RELATED_TO) associated with old versions of a document,

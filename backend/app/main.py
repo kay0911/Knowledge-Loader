@@ -61,6 +61,8 @@ try:
         conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS heading_path JSON;"))
         conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS page_start INTEGER;"))
         conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS page_end INTEGER;"))
+        conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS chunk_hash VARCHAR(64);"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_document_chunks_chunk_hash ON document_chunks(chunk_hash);"))
     logger.info("Migrations completed successfully.")
 except Exception as migration_err:
     logger.error(f"Migration failed: {str(migration_err)}")

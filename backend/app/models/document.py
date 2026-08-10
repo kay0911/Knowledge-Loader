@@ -64,6 +64,7 @@ class DocumentChunk(Base):
     row_start = Column(Integer, nullable=True)
     row_end = Column(Integer, nullable=True)
     chunk_order = Column(Integer, nullable=False)
+    chunk_hash = Column(String(64), nullable=True, index=True)
     embedding = Column(Vector(768), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

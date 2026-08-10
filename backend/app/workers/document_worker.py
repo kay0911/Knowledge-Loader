@@ -10,6 +10,7 @@ from app.services.embedding_service import EmbeddingService
 from app.services.graph_extraction_service import GraphExtractionService
 from app.services.graph_service import GraphService
 from app.services.bm25_service import BM25Service
+from app.services.delta_ingestion_service import DeltaIngestionService
 from app.core.logging import logger
 
 def process_job(db: Session, job: ProcessingJob):
@@ -35,9 +36,13 @@ def process_job(db: Session, job: ProcessingJob):
         # Chunk normalized blocks using Dual Chunker Pipeline
         chunks_data = ChunkingService.chunk_normalized_blocks(normalized_blocks)
         
+        # Calculate Chunk Hashes and run Delta Processing
+        reused_chunks_data, delta_new_chunks_data = DeltaIngestionService.filter_existing_chunks(db, chunks_data)
+        
         # Save chunks to PostgreSQL
         chunks = []
         for item in chunks_data:
+            ch_hash = item.get("chunk_hash") or DeltaIngestionService.compute_chunk_hash(item["content"])
             chunk = DocumentChunk(
                 document_id=doc.id,
                 document_version_id=version.id,
@@ -51,22 +56,32 @@ def process_job(db: Session, job: ProcessingJob):
                 row_start=item.get("row_start"),
                 row_end=item.get("row_end"),
                 chunk_order=item["chunk_order"],
+                chunk_hash=ch_hash,
                 is_active=True
             )
-            # Call Embedding API
-            try:
-                chunk.embedding = EmbeddingService.get_embedding(chunk.content)
-            except Exception as emb_err:
-                logger.error(f"Failed to generate embedding for chunk {chunk.chunk_order}: {str(emb_err)}")
-                chunk.embedding = None
+            
+            # Check if embedding can be reused ($0 cost) or generated
+            if item in reused_chunks_data and item.get("embedding"):
+                logger.info(f"Reusing existing embedding for chunk {chunk.chunk_order} (Hash: {ch_hash[:8]}...) - Skip AI cost ($0)")
+                chunk.embedding = item["embedding"]
+            else:
+                try:
+                    chunk.embedding = EmbeddingService.get_embedding(chunk.content)
+                except Exception as emb_err:
+                    logger.error(f"Failed to generate embedding for chunk {chunk.chunk_order}: {str(emb_err)}")
+                    chunk.embedding = None
                 
             db.add(chunk)
-            chunks.append(chunk)
+            chunks.append((chunk, item in delta_new_chunks_data))
             
         db.flush() # Populate chunk IDs to link in Neo4j evidence
         
-        # Extract graph and save to Neo4j for each chunk
-        for chunk in chunks:
+        # Extract graph and save to Neo4j ONLY for new/modified delta chunks
+        for chunk, is_delta_new in chunks:
+            if not is_delta_new:
+                logger.info(f"Skipping LLM Graph Extraction for unchanged chunk {chunk.chunk_order} (Hash: {chunk.chunk_hash[:8]}...) - Skip AI cost ($0)")
+                continue
+
             try:
                 entities, relationships = GraphExtractionService.extract_graph(chunk.content)
                 if entities or relationships:
@@ -88,6 +103,14 @@ def process_job(db: Session, job: ProcessingJob):
                 DocumentVersion.id != version.id
             ).update({"is_active": False})
             
+            invalidated_chunks = db.query(DocumentChunk).filter(
+                DocumentChunk.document_id == doc.id,
+                DocumentChunk.document_version_id != version.id,
+                DocumentChunk.is_active == True
+            ).all()
+            
+            invalidated_ids = [str(c.id) for c in invalidated_chunks]
+            
             db.query(DocumentChunk).filter(
                 DocumentChunk.document_id == doc.id,
                 DocumentChunk.document_version_id != version.id
@@ -96,8 +119,9 @@ def process_job(db: Session, job: ProcessingJob):
             version.is_active = True
             version.status = "READY"
             
-            # Clean up old Neo4j graph version evidence
+            # Clean up old Neo4j graph version evidence & orphan entities
             try:
+                GraphService.remove_invalidated_chunk_evidence(invalidated_ids)
                 GraphService.remove_old_versions_evidence(str(doc.id), str(version.id))
             except Exception as graph_clean_err:
                 logger.error(f"Failed to clear old versions Neo4j evidence for document {doc.id}: {str(graph_clean_err)}")
