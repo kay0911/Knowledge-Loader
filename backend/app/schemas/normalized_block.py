@@ -13,6 +13,8 @@ class NormalizedBlock(BaseModel):
     row_start: Optional[int] = None
     row_end: Optional[int] = None
     table_id: Optional[str] = None
+    image_path: Optional[str] = None
+    requires_llm_summary: bool = False
     source_order: int = 0
 
     model_config = ConfigDict(from_attributes=True)
