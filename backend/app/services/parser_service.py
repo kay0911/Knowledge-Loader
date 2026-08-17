@@ -6,6 +6,7 @@ import pypdf
 import docx
 import openpyxl
 import zipfile
+from collections import Counter
 from typing import List, Dict, Any, Optional
 from app.schemas.normalized_block import NormalizedBlock
 from app.core.logging import logger
@@ -20,6 +21,58 @@ except ImportError:
     logger.warning("markitdown package not found, falling back to direct parsing.")
 
 class ParserService:
+    @staticmethod
+    def _save_image_with_hash(
+        img_bytes: bytes,
+        doc_basename: str,
+        ext: str,
+        base_dir: str,
+        doc_image_cache: Dict[str, Dict[str, Any]],
+        alt_text: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Saves image bytes using MD5 hash deduplication.
+        If an identical image byte stream was already saved for this document/session:
+        - Does NOT write a new duplicate file to disk.
+        - Reuses the existing file paths and metadata.
+        Returns dict with 'rel_path', 'full_path', 'alt', 'hash', 'is_duplicate', 'count'.
+        """
+        import hashlib
+        img_hash = hashlib.md5(img_bytes).hexdigest()
+        ext = ext.lower().lstrip(".")
+        if ext not in ["png", "jpeg", "jpg", "gif", "svg", "webp"]:
+            ext = "png"
+
+        if img_hash in doc_image_cache:
+            cached = doc_image_cache[img_hash]
+            cached["count"] += 1
+            return {
+                "rel_path": cached["rel_path"],
+                "full_path": cached["full_path"],
+                "alt": alt_text or cached["alt"],
+                "hash": img_hash,
+                "is_duplicate": True,
+                "count": cached["count"]
+            }
+
+        img_filename = f"{doc_basename}_img_{img_hash[:10]}.{ext}"
+        img_full_path = os.path.join(base_dir, img_filename)
+        rel_path = f"storage/extracted_images/{img_filename}"
+
+        with open(img_full_path, "wb") as f_img:
+            f_img.write(img_bytes)
+
+        res = {
+            "rel_path": rel_path,
+            "full_path": img_full_path,
+            "alt": alt_text,
+            "hash": img_hash,
+            "is_duplicate": False,
+            "count": 1
+        }
+        doc_image_cache[img_hash] = res
+        return res
+
     @staticmethod
     def parse_markdown_content(
         md_text: str, 
@@ -264,6 +317,7 @@ class ParserService:
             base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "storage", "extracted_images"))
             os.makedirs(base_dir, exist_ok=True)
             doc_basename = os.path.splitext(os.path.basename(file_path))[0]
+            doc_image_cache: Dict[str, Dict[str, Any]] = {}
             image_counter = 0
 
             # Iterate over elements in body sequentially (paragraphs and tables)
@@ -283,30 +337,16 @@ class ParserService:
                             if "image" in rel_part.content_type:
                                 image_counter += 1
                                 ext = rel_part.content_type.split("/")[-1]
-                                if ext not in ["png", "jpeg", "jpg", "gif"]:
-                                    ext = "png"
-                                img_filename = f"{doc_basename}_img_{image_counter}.{ext}"
-                                img_full_path = os.path.join(base_dir, img_filename)
-                                
-                                with open(img_full_path, "wb") as f:
-                                    f.write(rel_part.blob)
-                                
-                                relative_img_path = f"storage/extracted_images/{img_filename}"
-                                img_tag = f"<img src='{relative_img_path}' alt='Embedded Image {image_counter} in {doc_basename}' />"
+                                img_info = cls._save_image_with_hash(
+                                    img_bytes=rel_part.blob,
+                                    doc_basename=doc_basename,
+                                    ext=ext,
+                                    base_dir=base_dir,
+                                    doc_image_cache=doc_image_cache,
+                                    alt_text=f"Embedded Image {image_counter} in {doc_basename}"
+                                )
+                                img_tag = f"<img src='{img_info['rel_path']}' alt='{img_info['alt']}' />"
                                 para_img_tags.append(img_tag)
-                                
-                                # Also emit dedicated image block for VLM / LLM Summarization
-                                source_order += 1
-                                blocks.append(NormalizedBlock(
-                                    block_id=str(uuid.uuid4()),
-                                    source_type="docx",
-                                    block_type="image",
-                                    content=img_tag,
-                                    image_path=img_full_path,
-                                    requires_llm_summary=True,
-                                    heading_path=list(current_heading_path),
-                                    source_order=source_order
-                                ))
 
                     # Insert inline image tags into text paragraph for contextual linkage
                     if para_img_tags:
@@ -415,6 +455,7 @@ class ParserService:
 
         # Step 1: Pre-map embedded images to exact Sheet & Row anchors using openpyxl drawings
         sheet_images_by_row: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
+        doc_image_cache: Dict[str, Dict[str, Any]] = {}
         try:
             wb_draw = openpyxl.load_workbook(file_path, data_only=True)
             for s_name in wb_draw.sheetnames:
@@ -425,21 +466,22 @@ class ParserService:
                     anchor_cell = getattr(img.anchor, "_from", None)
                     r_idx = anchor_cell.row + 1 if anchor_cell else 1
                     ext = getattr(img, 'format', 'png').lower()
-                    if ext not in ["png", "jpeg", "jpg", "gif"]:
-                        ext = "png"
-                    img_filename = f"{doc_basename}_{s_name}_img_{idx}.{ext}"
-                    img_full_path = os.path.join(base_dir, img_filename)
                     try:
                         img_bytes = img._data()
-                        with open(img_full_path, "wb") as f_img:
-                            f_img.write(img_bytes)
-                        rel_path = f"storage/extracted_images/{img_filename}"
+                        img_info = cls._save_image_with_hash(
+                            img_bytes=img_bytes,
+                            doc_basename=f"{doc_basename}_{s_name}",
+                            ext=ext,
+                            base_dir=base_dir,
+                            doc_image_cache=doc_image_cache,
+                            alt_text=f"Embedded Image {idx} in Sheet {s_name}"
+                        )
                         if r_idx not in sheet_images_by_row[s_name]:
                             sheet_images_by_row[s_name][r_idx] = []
                         sheet_images_by_row[s_name][r_idx].append({
-                            "rel_path": rel_path,
-                            "full_path": img_full_path,
-                            "alt": f"Embedded Image {idx} in Sheet {s_name}"
+                            "rel_path": img_info["rel_path"],
+                            "full_path": img_info["full_path"],
+                            "alt": img_info["alt"]
                         })
                     except Exception as e_save:
                         logger.warning(f"Could not save XLSX image: {e_save}")
@@ -467,18 +509,51 @@ class ParserService:
                 best_header_row_idx = 0
                 max_cols_count = 0
                 
-                # Scan top 15 rows to find the row with MAXIMUM populated non-empty columns (True Header)
+                # Scan top 15 rows to find the True Header row with concise field titles (avoiding URL/metadata rows)
                 try:
+                    best_score = -999
                     for r_idx, r in enumerate(rows_list[:15]):
                         if not r:
                             continue
                         non_empty_cols = [i for i, c in enumerate(r) if c is not None and str(c).strip()]
-                        if len(non_empty_cols) > max_cols_count:
+                        if not non_empty_cols:
+                            continue
+
+                        # Count concise field title cells (< 70 chars, not URLs)
+                        field_title_cols = [
+                            i for i in non_empty_cols 
+                            if not str(r[i]).strip().lower().startswith(("http://", "https://", "www."))
+                            and len(str(r[i]).strip()) < 70
+                        ]
+                        url_count = len(non_empty_cols) - len(field_title_cols)
+                        score = len(field_title_cols) * 2 - url_count * 3
+
+                        # Calculate max column index across top 100 rows in the sheet to prevent truncating offset tables
+                        sheet_max_col = 0
+                        for r_sample in rows_list[:100]:
+                            if r_sample:
+                                ne = [i_c for i_c, v_c in enumerate(r_sample) if v_c is not None and str(v_c).strip()]
+                                if ne:
+                                    sheet_max_col = max(sheet_max_col, max(ne) + 1)
+
+                        if score > best_score or (score == best_score and len(non_empty_cols) > max_cols_count):
+                            best_score = score
                             max_cols_count = len(non_empty_cols)
                             best_header_row_idx = r_idx
-                            last_col = max(non_empty_cols) + 1
-                            max_col_idx = min(last_col, 35) # Cap at 35 columns max
-                            headers = [str(r[i]).strip().replace('\n', ' ').replace('|', '\\|') if i < len(r) and r[i] is not None else f"Col{i+1}" for i in range(max_col_idx)]
+                            max_col_idx = min(max(sheet_max_col, max(non_empty_cols) + 1), 35) # Cap at 35 columns max
+
+                            raw_headers = []
+                            for i in range(max_col_idx):
+                                if i < len(r) and r[i] is not None and str(r[i]).strip():
+                                    val = str(r[i]).strip().replace('\n', ' ').replace('|', '\\|')
+                                    if val.lower().startswith(("http://", "https://", "www.")):
+                                        val = "[Link]"
+                                    elif len(val) > 40:
+                                        val = val[:37] + "..."
+                                    raw_headers.append(val)
+                                else:
+                                    raw_headers.append("")
+                            headers = raw_headers
                 except Exception as h_err:
                     logger.warning(f"Error finding table header in sheet '{sheet_name}': {h_err}")
                     continue
@@ -604,6 +679,22 @@ class ParserService:
                         ws_openpyxl_rows = list(ws_openpyxl.iter_rows())
                     except Exception:
                         ws_openpyxl_rows = []
+                    # Calculate column baseline fill colors to distinguish Gantt bars from vertical column themes/stripes
+                    col_default_fills = {}
+                    if ws_openpyxl_rows and timeline_col_map:
+                        for c_k in timeline_col_map.keys():
+                            c_fills = []
+                            for r_o in ws_openpyxl_rows[best_header_row_idx + 1:min(len(ws_openpyxl_rows), best_header_row_idx + 50)]:
+                                if c_k < len(r_o):
+                                    cell_o = r_o[c_k]
+                                    if cell_o.fill and cell_o.fill.fill_type and cell_o.fill.start_color:
+                                        sc = cell_o.fill.start_color
+                                        f_val = str(sc.rgb) if sc.type == "rgb" else (f"THEME_{sc.theme}" if sc.type == "theme" else str(sc.value))
+                                        c_fills.append(f_val)
+                                    else:
+                                        c_fills.append("NONE")
+                            most_c = Counter(c_fills).most_common(1)[0][0] if c_fills else "NONE"
+                            col_default_fills[c_k] = most_c
 
                     timeline_records = []
                     raw_row_index = best_header_row_idx + 1
@@ -638,21 +729,43 @@ class ParserService:
                         active_cols = []
                         cell_objects = ws_openpyxl_rows[row_i] if row_i < len(ws_openpyxl_rows) else []
 
+                        # Check if current row is a Category/Header row (uniform fill across >75% timeline columns)
+                        row_t_fills = []
+                        for c_k in timeline_col_map.keys():
+                            if c_k < len(cell_objects):
+                                cell_o = cell_objects[c_k]
+                                if cell_o.fill and cell_o.fill.fill_type and cell_o.fill.start_color:
+                                    sc = cell_o.fill.start_color
+                                    f_val = str(sc.rgb) if sc.type == "rgb" else (f"THEME_{sc.theme}" if sc.type == "theme" else str(sc.value))
+                                    row_t_fills.append(f_val)
+                                else:
+                                    row_t_fills.append("NONE")
+
+                        freq_fill, freq_cnt = Counter(row_t_fills).most_common(1)[0] if row_t_fills else ("NONE", 0)
+                        is_section_header = (
+                            (freq_cnt / len(row_t_fills) > 0.75) 
+                            and freq_fill not in ["NONE", "00000000", "FFFFFFFF", "00FFFFFF", "FFCCCCCC"]
+                            and any(freq_fill != col_default_fills.get(c_k) for c_k in timeline_col_map.keys())
+                        ) if row_t_fills else False
+
                         for c_idx, t_info in timeline_col_map.items():
                             is_active = False
                             if c_idx < len(row) and row[c_idx] is not None and str(row[c_idx]).strip():
                                 c_val = str(row[c_idx]).strip().lower()
-                                if c_val in ["x", "1", "true", "yes", "done"] or len(c_val) > 0:
+                                if c_val in ["x", "1", "true", "yes", "done", "100%", "in progress"]:
                                     is_active = True
                             
-                            # Check cell fill color if value check didn't trigger
-                            if not is_active and c_idx < len(cell_objects):
+                            # Check cell fill color if value check didn't trigger AND row is not a full section header fill
+                            if not is_active and not is_section_header and c_idx < len(cell_objects):
                                 cell_obj = cell_objects[c_idx]
-                                if cell_obj.fill and cell_obj.fill.start_color and cell_obj.fill.start_color.rgb:
-                                    rgb = str(cell_obj.fill.start_color.rgb)
-                                    # Ignore white, black, grey background fills
-                                    if rgb not in ["00000000", "FFFFFFFF", "FFCCCCCC", "00FFFFFF"]:
-                                        is_active = True
+                                if cell_obj.fill and cell_obj.fill.fill_type and cell_obj.fill.start_color:
+                                    sc = cell_obj.fill.start_color
+                                    rgb = str(sc.rgb) if sc.type == "rgb" else (f"THEME_{sc.theme}" if sc.type == "theme" else str(sc.value))
+                                    # Ignore standard empty background fills
+                                    if rgb not in ["NONE", "00000000", "FFFFFFFF", "FFCCCCCC", "00FFFFFF"]:
+                                        # Must be different from the column's default baseline fill!
+                                        if rgb != col_default_fills.get(c_idx):
+                                            is_active = True
 
                             if is_active:
                                 active_cols.append((c_idx, t_info))
@@ -706,10 +819,29 @@ class ParserService:
                     continue
 
                 # ==================================================
-                # MODE B: STANDARD MARKDOWN PIPE TABLE MODE
+                # MODE B: STANDARD MARKDOWN PIPE TABLE MODE (WITH ACTIVE COLUMN SQUEEZING)
                 # ==================================================
-                header_line = "| " + " | ".join(headers) + " |\n"
-                divider_line = "| " + " | ".join(["---"] * len(headers)) + " |\n"
+                valid_data_rows = [
+                    r for r in rows_list[best_header_row_idx + 1:] 
+                    if r and any(c is not None and str(c).strip() for c in r)
+                ]
+
+                # Identify active column indices that contain non-empty data across valid data rows
+                active_col_indices = []
+                for col_i in range(len(headers)):
+                    has_data = any(
+                        col_i < len(r) and r[col_i] is not None and str(r[col_i]).strip() != ""
+                        for r in valid_data_rows[:200]
+                    )
+                    if has_data:
+                        active_col_indices.append(col_i)
+
+                if not active_col_indices:
+                    active_col_indices = list(range(min(len(headers), 5)))
+
+                active_headers = [headers[i] if i < len(headers) else "" for i in active_col_indices]
+                header_line = "| " + " | ".join(active_headers) + " |\n"
+                divider_line = "| " + " | ".join(["---"] * len(active_col_indices)) + " |\n"
                 header_md = f"Sheet: {sheet_name}\n\n" + header_line + divider_line
 
                 batch_rows = []
@@ -741,10 +873,14 @@ class ParserService:
                             ))
 
                     # Skip completely blank rows
-                    if not any(c is not None and str(c).strip() for c in row[:len(headers)]):
+                    if not any(c is not None and str(c).strip() for c in row if c is not None):
                         continue
 
-                    row_vals = [str(row[i]).strip().replace('\n', ' ').replace('|', '\\|') if i < len(row) and row[i] is not None else "" for i in range(len(headers))]
+                    row_vals = [
+                        str(row[i]).strip().replace('\n', ' ').replace('|', '\\|') 
+                        if i < len(row) and row[i] is not None else "" 
+                        for i in active_col_indices
+                    ]
                     row_line = "| " + " | ".join(row_vals) + " |\n"
                     row_len = len(row_line)
 
@@ -830,47 +966,143 @@ class ParserService:
 
     @classmethod
     def parse_pptx(cls, file_path: str) -> List[NormalizedBlock]:
-        logger.info(f"Parsing PPTX file: {file_path}")
+        logger.info(f"Parsing PPTX file with Tables and Images: {file_path}")
+        doc_basename = os.path.splitext(os.path.basename(file_path))[0]
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../storage/extracted_images"))
+        os.makedirs(base_dir, exist_ok=True)
+
         blocks: List[NormalizedBlock] = []
+        doc_image_cache: Dict[str, Dict[str, Any]] = {}
+        source_order = 0
+
         try:
-            from pptx import Presentation
-            prs = Presentation(file_path)
-            source_order = 0
+            import pptx
+            from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-            for slide_idx, slide in enumerate(prs.slides):
-                slide_num = slide_idx + 1
-                slide_title = f"Slide {slide_num}"
-                
-                # Try to extract slide title shape
-                if slide.shapes.title and slide.shapes.title.text:
-                    slide_title = f"Slide {slide_num}: {slide.shapes.title.text.strip()}"
+            prs = pptx.Presentation(file_path)
+            slides_list = list(prs.slides)
 
-                slide_texts = []
-                for shape in slide.shapes:
+            def extract_shapes(shapes_list, slide_num, heading_path, img_counter, slide_title_text):
+                nonlocal source_order
+                for shape in shapes_list:
+                    # 1. Handle Group Shapes recursively
+                    if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+                        img_counter = extract_shapes(shape.shapes, slide_num, heading_path, img_counter, slide_title_text)
+                        continue
+
+                    # 2. Handle Tables in PPTX
+                    if shape.has_table:
+                        table = shape.table
+                        table_rows = []
+                        for row in table.rows:
+                            row_vals = [cell.text.strip().replace('\n', ' ').replace('|', '\\|') for cell in row.cells]
+                            table_rows.append(row_vals)
+                        
+                        if table_rows:
+                            max_c = max(len(r) for r in table_rows)
+                            active_cols = [c for c in range(max_c) if any(c < len(r) and r[c] != "" for r in table_rows)]
+                            if not active_cols:
+                                active_cols = list(range(max_c))
+                            
+                            headers = [table_rows[0][c] if c < len(table_rows[0]) else "" for c in active_cols]
+                            header_line = "| " + " | ".join(headers) + " |\n"
+                            divider_line = "| " + " | ".join(["---"] * len(active_cols)) + " |\n"
+                            
+                            body_lines = []
+                            for r_vals in table_rows[1:]:
+                                line_vals = [r_vals[c] if c < len(r_vals) else "" for c in active_cols]
+                                if any(v != "" for v in line_vals):
+                                    body_lines.append("| " + " | ".join(line_vals) + " |\n")
+                            
+                            table_md = header_line + divider_line + "".join(body_lines)
+                            if table_md.strip():
+                                source_order += 1
+                                blocks.append(NormalizedBlock(
+                                    block_id=str(uuid.uuid4()),
+                                    source_type="pptx",
+                                    block_type="table",
+                                    content=table_md.strip(),
+                                    heading_path=heading_path,
+                                    page_start=slide_num,
+                                    page_end=slide_num,
+                                    requires_llm_summary=False,
+                                    source_order=source_order
+                                ))
+                        continue
+
+                    # 3. Handle Images in PPTX with Hash Deduplication
+                    if shape.shape_type == MSO_SHAPE_TYPE.PICTURE or hasattr(shape, "image"):
+                        try:
+                            img = shape.image
+                            ext = getattr(img, "ext", "png")
+                            img_counter += 1
+                            img_info = cls._save_image_with_hash(
+                                img_bytes=img.blob,
+                                doc_basename=doc_basename,
+                                ext=ext,
+                                base_dir=base_dir,
+                                doc_image_cache=doc_image_cache,
+                                alt_text=f"Embedded Image {img_counter} in Slide {slide_num}"
+                            )
+
+                            # If an image repeats > 5 times (decorative template logo), mark summary as False
+                            is_frequent_logo = img_info.get("count", 1) > 5
+
+                            img_tag = f"<img src='{img_info['rel_path']}' alt='{img_info['alt']}' />"
+                            source_order += 1
+                            blocks.append(NormalizedBlock(
+                                block_id=str(uuid.uuid4()),
+                                source_type="pptx",
+                                block_type="image",
+                                content=img_tag,
+                                image_path=img_info["full_path"],
+                                requires_llm_summary=not is_frequent_logo,
+                                heading_path=heading_path,
+                                page_start=slide_num,
+                                page_end=slide_num,
+                                source_order=source_order
+                            ))
+                        except Exception as e_img:
+                            logger.warning(f"Could not extract PPTX image on slide {slide_num}: {e_img}")
+                        continue
+
+                    # 4. Handle Text Frames
                     if shape.has_text_frame:
-                        for paragraph in shape.text_frame.paragraphs:
-                            txt = paragraph.text.strip()
-                            if txt and txt != slide.shapes.title.text.strip() if slide.shapes.title else True:
-                                slide_texts.append(txt)
+                        txt = shape.text.strip()
+                        if txt and txt != slide_title_text:
+                            source_order += 1
+                            blocks.append(NormalizedBlock(
+                                block_id=str(uuid.uuid4()),
+                                source_type="pptx",
+                                block_type="paragraph",
+                                content=txt,
+                                heading_path=heading_path,
+                                page_start=slide_num,
+                                page_end=slide_num,
+                                source_order=source_order
+                            ))
 
-                if slide_texts:
-                    source_order += 1
-                    content = "\n".join(slide_texts)
-                    blocks.append(NormalizedBlock(
-                        block_id=str(uuid.uuid4()),
-                        source_type="pptx",
-                        block_type="paragraph",
-                        content=f"{slide_title}\n\n{content}",
-                        heading_path=[slide_title],
-                        page_start=slide_num,
-                        page_end=slide_num,
-                        source_order=source_order
-                    ))
+                return img_counter
+
+            for slide_idx, slide in enumerate(slides_list):
+                slide_num = slide_idx + 1
+                slide_title_text = ""
+                try:
+                    if slide.shapes.title and slide.shapes.title.text:
+                        slide_title_text = slide.shapes.title.text.strip()
+                except Exception:
+                    pass
+
+                heading_title = f"Slide {slide_num}: {slide_title_text}" if slide_title_text else f"Slide {slide_num}"
+                heading_path = [heading_title]
+
+                extract_shapes(slide.shapes, slide_num, heading_path, 0, slide_title_text)
 
         except Exception as e:
             logger.error(f"Error parsing PPTX {file_path}: {str(e)}")
             raise e
 
+        logger.info(f"Parsed PPTX file {os.path.basename(file_path)}. Extracted {len(blocks)} blocks.")
         return blocks
 
     @classmethod

@@ -20,50 +20,9 @@ class ChunkingService:
         if not blocks:
             return []
 
-        chunks: List[Dict[str, Any]] = []
-        prose_blocks: List[NormalizedBlock] = []
+        chunks = cls._chunk_prose_blocks(blocks)
 
-        for block in blocks:
-            if block.block_type in ["table", "table_group"]:
-                if prose_blocks:
-                    chunks.extend(cls._chunk_prose_blocks(prose_blocks))
-                    prose_blocks = []
-                chunks.append({
-                    "chunk_order": 0,
-                    "heading": block.heading_path[-1] if block.heading_path else block.sheet_name,
-                    "heading_path": list(block.heading_path),
-                    "content": block.content,
-                    "block_type": "table",
-                    "sheet_name": block.sheet_name,
-                    "has_table": True,
-                    "requires_llm_summary": False,
-                    "page_start": block.page_start,
-                    "page_end": block.page_end
-                })
-            elif block.block_type == "image":
-                if prose_blocks:
-                    chunks.extend(cls._chunk_prose_blocks(prose_blocks))
-                    prose_blocks = []
-                chunks.append({
-                    "chunk_order": 0,
-                    "heading": block.heading_path[-1] if block.heading_path else None,
-                    "heading_path": list(block.heading_path),
-                    "content": block.content,
-                    "block_type": "image",
-                    "image_path": getattr(block, "image_path", None),
-                    "has_image": True,
-                    "requires_llm_summary": True,
-                    "page_start": block.page_start,
-                    "page_end": block.page_end
-                })
-            else:
-                prose_blocks.append(block)
-
-        # Flush remaining prose blocks
-        if prose_blocks:
-            chunks.extend(cls._chunk_prose_blocks(prose_blocks))
-
-        # Post-merge pass: combine short adjacent chunks & tables up to MAX_CHARS (1500 chars / ~400 tokens)
+        # Post-merge pass: combine short adjacent prose/image chunks up to MAX_CHARS (1500 chars / ~400 tokens) & max 3 images
         merged_chunks: List[Dict[str, Any]] = []
         for c in chunks:
             if not merged_chunks:
@@ -74,22 +33,29 @@ class ChunkingService:
             prev_len = len(prev["content"])
             curr_len = len(c["content"])
 
-            # Do NOT merge standalone image chunks into text/table chunks
-            if prev.get("block_type") == "image" or c.get("block_type") == "image":
-                merged_chunks.append(c)
-                continue
+            # Extract image paths in prev and c
+            prev_imgs = prev.get("image_path", [])
+            if isinstance(prev_imgs, str):
+                prev_imgs = [prev_imgs]
+            curr_imgs = c.get("image_path", [])
+            if isinstance(curr_imgs, str):
+                curr_imgs = [curr_imgs]
+            
+            combined_imgs = list(dict.fromkeys([img for img in (prev_imgs or []) + (curr_imgs or []) if img]))
 
-            # Merge adjacent prose/text chunks if combined size fits in TARGET_CHARS (or if prev is below MIN_MERGE_CHARS up to MAX_CHARS)
-            if (prev_len + curr_len <= cls.TARGET_CHARS) or (prev_len < cls.MIN_MERGE_CHARS and prev_len + curr_len <= cls.MAX_CHARS):
+            # Merge adjacent chunks (text, table, image) if combined size fits in TARGET_CHARS and max 3 images cap
+            if len(combined_imgs) <= 3 and ((prev_len + curr_len <= cls.TARGET_CHARS) or (prev_len < cls.MIN_MERGE_CHARS and prev_len + curr_len <= cls.MAX_CHARS)):
                 prev["content"] = prev["content"] + "\n\n" + c["content"]
                 if c.get("heading") and not prev.get("heading"):
                     prev["heading"] = c.get("heading")
                     prev["heading_path"] = c.get("heading_path")
                 if c.get("has_table"):
                     prev["has_table"] = True
-                if c.get("has_image"):
+                if combined_imgs:
                     prev["has_image"] = True
-                prev["requires_llm_summary"] = prev.get("has_image", False) or c.get("has_image", False)
+                    prev["image_path"] = combined_imgs
+                    prev["block_type"] = "image"
+                prev["requires_llm_summary"] = prev.get("has_image", False) or prev.get("has_table", False)
                 if c.get("page_end"):
                     prev["page_end"] = c.get("page_end")
                 continue
@@ -109,9 +75,8 @@ class ChunkingService:
     @classmethod
     def _chunk_prose_blocks(cls, blocks: List[NormalizedBlock]) -> List[Dict[str, Any]]:
         """
-        Recursive Chunker for Prose, Headings, Lists, and Code blocks.
-        Performs Post-Merge to combine short adjacent blocks up to TARGET_CHARS budget.
-        Anchors heading_path to the specific content section to prevent metadata misalignment.
+        Recursive Chunker for Prose, Headings, Lists, Code, and Inline Images.
+        Streams text and inline <img /> tags continuously into unified chunks (max 3 images per chunk).
         """
         chunks: List[Dict[str, Any]] = []
         
@@ -138,19 +103,45 @@ class ChunkingService:
             heading_title = effective_heading_path[-1] if effective_heading_path else None
 
             contains_table = "<table>" in full_text or "<table " in full_text or "| --- |" in full_text or ("| " in full_text and " |\n|" in full_text)
-            contains_image = "<img " in full_text
+            
+            # Extract image paths embedded in <img src='...' />
+            img_matches = re.findall(r"<img\s+src=['\"]([^'\"]+)['\"]", full_text)
+            image_paths = list(dict.fromkeys(img_matches))
+            contains_image = len(image_paths) > 0
+
             b_type = "table" if contains_table else ("image" if contains_image else "text")
             req_summary = contains_table or contains_image
+
+            chunk_dict = {
+                "block_type": b_type,
+                "has_table": contains_table,
+                "has_image": contains_image,
+                "requires_llm_summary": req_summary,
+                "content": full_text,
+                "heading": heading_title,
+                "heading_path": effective_heading_path,
+                "page_number": current_page_start,
+                "page_start": current_page_start,
+                "page_end": current_page_end,
+                "sheet_name": None,
+                "row_start": None,
+                "row_end": None
+            }
+            if contains_image:
+                chunk_dict["image_path"] = image_paths
 
             # If full_text exceeds MAX_CHARS, split recursively
             if len(full_text) > cls.MAX_CHARS:
                 sub_texts = cls._recursive_split_text(full_text, cls.MAX_CHARS, cls.OVERLAP_CHARS)
                 for sub in sub_texts:
                     sub_table = "<table>" in sub or "<table " in sub or "| --- |" in sub or ("| " in sub and " |\n|" in sub)
-                    sub_image = "<img " in sub
+                    sub_img_matches = re.findall(r"<img\s+src=['\"]([^'\"]+)['\"]", sub)
+                    sub_image_paths = list(dict.fromkeys(sub_img_matches))
+                    sub_image = len(sub_image_paths) > 0
                     sub_type = "table" if sub_table else ("image" if sub_image else "text")
                     sub_req = sub_table or sub_image
-                    chunks.append({
+
+                    sub_chunk = {
                         "block_type": sub_type,
                         "has_table": sub_table,
                         "has_image": sub_image,
@@ -164,23 +155,12 @@ class ChunkingService:
                         "sheet_name": None,
                         "row_start": None,
                         "row_end": None
-                    })
+                    }
+                    if sub_image:
+                        sub_chunk["image_path"] = sub_image_paths
+                    chunks.append(sub_chunk)
             else:
-                chunks.append({
-                    "block_type": b_type,
-                    "has_table": contains_table,
-                    "has_image": contains_image,
-                    "requires_llm_summary": req_summary,
-                    "content": full_text,
-                    "heading": heading_title,
-                    "heading_path": effective_heading_path,
-                    "page_number": current_page_start,
-                    "page_start": current_page_start,
-                    "page_end": current_page_end,
-                    "sheet_name": None,
-                    "row_start": None,
-                    "row_end": None
-                })
+                chunks.append(chunk_dict)
 
             # Overlap handling: If section boundary, DO NOT overlap bleeding from previous section!
             if is_section_boundary:
@@ -213,29 +193,32 @@ class ChunkingService:
             if not text:
                 continue
 
-            # Check if this block is a new heading or top-level item title
+            # Check image count in current buffer + candidate block
+            block_imgs = re.findall(r"<img\s+src=['\"]([^'\"]+)['\"]", text)
+            curr_imgs = re.findall(r"<img\s+src=['\"]([^'\"]+)['\"]", "".join(current_content_parts))
+            total_img_count = len(list(dict.fromkeys(curr_imgs + block_imgs)))
+
             is_new_section_title = block.block_type == "heading" or (item_pattern.search(text) and not any(p.startswith(text[:15]) for p in current_content_parts))
 
-            # Flush preceding section ONLY when buffer has reached MIN_MERGE_CHARS (200 chars)!
-            # Prevents creating micro-chunks for short consecutive headings!
-            if is_new_section_title and current_content_parts and current_len >= cls.MIN_MERGE_CHARS:
+            if is_new_section_title and current_len >= cls.MIN_MERGE_CHARS:
                 flush_chunk(is_section_boundary=True)
 
             if block.heading_path:
                 current_heading_path = list(block.heading_path)
+                if not active_chunk_heading_path:
+                    active_chunk_heading_path = list(block.heading_path)
 
-            if not active_chunk_heading_path:
-                active_chunk_heading_path = list(current_heading_path)
-
-            # Update page range tracking
             if block.page_start is not None:
-                if current_page_start is None or block.page_start < current_page_start:
+                if current_page_start is None:
                     current_page_start = block.page_start
-            if block.page_end is not None:
-                if current_page_end is None or block.page_end > current_page_end:
-                    current_page_end = block.page_end
-
             text_len = len(text)
+
+            # Flush if adding this block exceeds 3 images cap OR TARGET_CHARS
+            if (total_img_count > 3 and len(curr_imgs) > 0) or (current_len + text_len > cls.TARGET_CHARS):
+                if current_len >= cls.MIN_MERGE_CHARS or total_img_count > 3:
+                    flush_chunk(is_section_boundary=False)
+                    if not active_chunk_heading_path and block.heading_path:
+                        active_chunk_heading_path = list(block.heading_path)
 
             if current_len + text_len <= cls.TARGET_CHARS:
                 current_content_parts.append(text)
