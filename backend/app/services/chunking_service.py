@@ -20,7 +20,22 @@ class ChunkingService:
         if not blocks:
             return []
 
-        chunks = cls._chunk_prose_blocks(blocks)
+        prose_buffer: List[NormalizedBlock] = []
+        raw_chunks: List[Dict[str, Any]] = []
+
+        for block in blocks:
+            if block.block_type == "table":
+                if prose_buffer:
+                    raw_chunks.extend(cls._chunk_prose_blocks(prose_buffer))
+                    prose_buffer = []
+                raw_chunks.extend(cls._chunk_table_block(block))
+            else:
+                prose_buffer.append(block)
+
+        if prose_buffer:
+            raw_chunks.extend(cls._chunk_prose_blocks(prose_buffer))
+
+        chunks = raw_chunks
 
         # Post-merge pass: combine short adjacent prose/image chunks up to MAX_CHARS (1500 chars / ~400 tokens) & max 3 images
         merged_chunks: List[Dict[str, Any]] = []
@@ -257,49 +272,61 @@ class ChunkingService:
     @classmethod
     def _chunk_table_block(cls, block: NormalizedBlock) -> List[Dict[str, Any]]:
         """
-        Table Chunker with Header Enrichment and Character Budget Packing for XLSX/CSV/Tables.
+        Table Chunker with Header Enrichment and Character Budget Packing for Markdown/XLSX/CSV Tables.
+        Preserves Table Header (| col1 | col2 |... and | --- | --- |) at the top of EVERY split table chunk!
         """
         chunks: List[Dict[str, Any]] = []
-        lines = [l.strip() for l in block.content.split("\n") if l.strip()]
+        raw_content = block.content.strip()
+        lines = [l.strip() for l in raw_content.split("\n") if l.strip()]
         if not lines:
             return []
 
         sheet_prefix = f"Sheet: {block.sheet_name}\n" if block.sheet_name else ""
-        header_text = sheet_prefix
 
-        # Separate header lines vs record lines
-        record_lines = lines
+        # Detect Markdown Table Header (First 1-2 lines matching | ... |)
+        header_lines: List[str] = []
+        data_lines: List[str] = []
+
+        if lines[0].startswith("|") and len(lines) > 1 and "|-" in lines[1].replace(" ", ""):
+            header_lines = [lines[0], lines[1]]
+            data_lines = lines[2:]
+        else:
+            data_lines = lines
+
+        header_prefix = sheet_prefix + ("\n".join(header_lines) + "\n" if header_lines else "")
+        header_len = len(header_prefix)
 
         current_records: List[str] = []
-        current_len = len(header_text)
-        row_start = block.row_start
-        row_end = block.row_end
+        current_len = header_len
 
         def flush_table_chunk():
             nonlocal current_records, current_len
             if not current_records:
                 return
 
-            table_text = header_text + "\n".join(current_records)
+            table_text = (header_prefix + "\n".join(current_records)).strip()
+            heading_val = block.heading_path[-1] if block.heading_path else (block.sheet_name or "Bảng dữ liệu")
+
             chunks.append({
                 "block_type": "table",
                 "has_table": True,
+                "has_image": False,
                 "requires_llm_summary": True,
                 "content": table_text,
-                "heading": block.heading_path[-1] if block.heading_path else block.sheet_name,
-                "heading_path": block.heading_path,
+                "heading": heading_val,
+                "heading_path": block.heading_path or [],
                 "page_number": block.page_start,
                 "page_start": block.page_start,
                 "page_end": block.page_end,
                 "sheet_name": block.sheet_name,
-                "row_start": row_start,
-                "row_end": row_end
+                "row_start": block.row_start,
+                "row_end": block.row_end
             })
 
             current_records = []
-            current_len = len(header_text)
+            current_len = header_len
 
-        for line in record_lines:
+        for line in data_lines:
             line_len = len(line) + 1
             if current_len + line_len <= cls.TARGET_CHARS:
                 current_records.append(line)
