@@ -508,9 +508,8 @@ class ChatService:
     @staticmethod
     def _normalize_citation_tags(text: str) -> str:
         """
-        1. Converts grouped citations like [S1, S4] or [S1, S2, S3] into separate tags [S1][S4].
-        2. Cleans up repetitive citation tags [S1] inside Markdown table rows/cells
-           to keep tables visually clean while retaining citations in intro paragraphs.
+        Converts grouped citations like [S1, S4] or [S1, S2, S3] or [S1; S2] into separate tags [S1][S4].
+        Ensures frontend Markdown renderer can parse each source pill correctly.
         """
         if not text:
             return text
@@ -523,19 +522,7 @@ class ChatService:
             return content
 
         pattern = r"\[\s*S?\d+(?:\s*[\s,;&]\s*S?\d+)+\s*\]"
-        text = re.sub(pattern, replacer, text, flags=re.IGNORECASE)
-
-        # Post-processor: Remove citation tags [S1], [S2] inside markdown table rows (| ... |)
-        lines = text.split("\n")
-        cleaned_lines = []
-        for line in lines:
-            if line.strip().startswith("|") and line.strip().endswith("|"):
-                cleaned_line = re.sub(r"\s*\[S\d+\]", "", line)
-                cleaned_lines.append(cleaned_line)
-            else:
-                cleaned_lines.append(line)
-
-        return "\n".join(cleaned_lines)
+        return re.sub(pattern, replacer, text, flags=re.IGNORECASE)
 
     @staticmethod
     def _is_prompt_injection(question: str) -> bool:
