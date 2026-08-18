@@ -355,12 +355,22 @@ function ChatPage() {
         const rowLines = tableLines.slice(2); // Skip separator line tableLines[1]
 
         elements.push(
-          <div key={`table-${idx}`} style={{ overflowX: 'auto', margin: '14px 0', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <div key={`table-${idx}`} className="table-container" style={{ overflowX: 'auto', margin: '16px 0', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.25)', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
               <thead>
-                <tr style={{ background: 'rgba(16, 185, 129, 0.15)', borderBottom: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                <tr style={{ background: 'rgba(16, 185, 129, 0.18)', borderBottom: '1px solid rgba(16, 185, 129, 0.35)' }}>
                   {headerCells.map((cell, cIdx) => (
-                    <th key={cIdx} style={{ padding: '10px 14px', fontWeight: 600, color: '#34d399' }}>
+                    <th 
+                      key={cIdx} 
+                      style={{ 
+                        padding: '12px 14px', 
+                        fontWeight: 600, 
+                        color: '#34d399', 
+                        whiteSpace: 'nowrap',
+                        minWidth: cIdx === 0 ? '50px' : '100px',
+                        verticalAlign: 'middle'
+                      }}
+                    >
                       {parseMarkdownInline(cell, citations)}
                     </th>
                   ))}
@@ -371,11 +381,24 @@ function ChatPage() {
                   const rowCells = rowStr.split('|').slice(1, -1).map(c => c.trim());
                   return (
                     <tr key={rIdx} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: rIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                      {rowCells.map((cell, cIdx) => (
-                        <td key={cIdx} style={{ padding: '10px 14px', color: 'var(--text-color)', lineHeight: '1.5' }}>
-                          {parseMarkdownInline(cell, citations)}
-                        </td>
-                      ))}
+                      {rowCells.map((cell, cIdx) => {
+                        const isShortCell = cIdx === 0 || cell.length <= 6;
+                        return (
+                          <td 
+                            key={cIdx} 
+                            style={{ 
+                              padding: '10px 14px', 
+                              color: 'var(--text-color)', 
+                              lineHeight: '1.5',
+                              verticalAlign: 'top',
+                              whiteSpace: isShortCell ? 'nowrap' : 'normal',
+                              minWidth: isShortCell ? '45px' : '120px'
+                            }}
+                          >
+                            {parseMarkdownInline(cell, citations)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
