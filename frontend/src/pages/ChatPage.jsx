@@ -3,10 +3,79 @@ import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Send, BookOpen, Clock, AlertTriangle, Layers, 
-  Database, HelpCircle, ArrowRight, Sparkles, Plus, ArrowUp, RefreshCw, X
+  Database, HelpCircle, ArrowRight, Sparkles, Plus, ArrowUp, RefreshCw, X, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+function CollapsibleCitations({ citations, onSelectCitation }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!citations || citations.length === 0) return null;
+
+  const visibleCitations = (isExpanded || citations.length <= 3) 
+    ? citations 
+    : citations.slice(0, 3);
+  
+  const hiddenCount = citations.length - 3;
+
+  return (
+    <div style={{
+      marginTop: '16px',
+      paddingTop: '12px',
+      borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '6px',
+      alignItems: 'center'
+    }}>
+      <span style={{ fontSize: '0.75rem', color: '#64748b', marginRight: '4px', fontWeight: 500 }}>
+        Nguồn tài liệu ({citations.length}):
+      </span>
+
+      {visibleCitations.map((cit, idx) => (
+        <button
+          key={idx}
+          onClick={() => onSelectCitation(cit)}
+          className="chatgpt-citation-tag"
+        >
+          <BookOpen className="w-3 h-3" />
+          [{cit.source_id}] {cit.file_name}
+        </button>
+      ))}
+
+      {citations.length > 3 && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          style={{
+            background: 'rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '16px',
+            color: '#38bdf8',
+            fontSize: '0.75rem',
+            padding: '4px 10px',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontWeight: 500,
+            transition: 'all 0.2s ease'
+          }}
+        >
+          {isExpanded ? (
+            <>
+              Thu gọn <ChevronUp className="w-3 h-3" />
+            </>
+          ) : (
+            <>
+              +{hiddenCount} nguồn nữa <ChevronDown className="w-3 h-3" />
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -491,27 +560,10 @@ function ChatPage() {
 
                     {/* Inline lists of citations under AI Response */}
                     {msg.sender === 'ai' && msg.citations && msg.citations.length > 0 && (
-                      <div style={{
-                        marginTop: '16px',
-                        paddingTop: '12px',
-                        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '6px',
-                        alignItems: 'center'
-                      }}>
-                        <span style={{ fontSize: '0.75rem', color: '#64748b', marginRight: '4px' }}>Nguồn tài liệu:</span>
-                        {msg.citations.map((cit, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setActiveCitation(cit)}
-                            className="chatgpt-citation-tag"
-                          >
-                            <BookOpen className="w-3 h-3" />
-                            [{cit.source_id}] {cit.file_name}
-                          </button>
-                        ))}
-                      </div>
+                      <CollapsibleCitations
+                        citations={msg.citations}
+                        onSelectCitation={setActiveCitation}
+                      />
                     )}
                   </div>
                 </div>

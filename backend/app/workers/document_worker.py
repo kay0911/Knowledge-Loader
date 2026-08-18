@@ -78,25 +78,36 @@ def process_job(db: Session, job: ProcessingJob):
             
         db.flush() # Populate chunk IDs to link in Neo4j evidence
         
-        # Extract graph and save to Neo4j ONLY for new/modified delta chunks
-        for chunk, is_delta_new in chunks:
-            if not is_delta_new:
-                logger.info(f"Skipping LLM Graph Extraction for unchanged chunk {chunk.chunk_order} (Hash: {chunk.chunk_hash[:8]}...) - Skip AI cost ($0)")
-                continue
+        # Smart Delta Re-summary Algorithm (<20% changed chunks reuses existing metadata, >=20% triggers LLM summary)
+        total_chunks_count = len(chunks_data)
+        changed_chunks_count = len(delta_new_chunks_data)
+        change_ratio = changed_chunks_count / max(total_chunks_count, 1)
 
+        should_resummarize = True
+        if doc.metadata_summary and change_ratio < 0.20:
+            should_resummarize = False
+            logger.info(
+                f"Minor delta update for {doc.original_file_name}: "
+                f"{changed_chunks_count}/{total_chunks_count} changed chunks ({change_ratio*100:.1f}% < 20%). "
+                f"Reusing existing Document Metadata Summary ($0 LLM Cost)."
+            )
+        else:
+            logger.info(
+                f"Generating/Updating Document Metadata Summary for {doc.original_file_name}: "
+                f"{changed_chunks_count}/{total_chunks_count} changed chunks ({change_ratio*100:.1f}% >= 20% or missing metadata)."
+            )
+
+        if should_resummarize:
             try:
-                entities, relationships = GraphExtractionService.extract_graph(chunk.content)
-                if entities or relationships:
-                    GraphService.save_extracted_graph(
-                        document_id=str(doc.id),
-                        version_id=str(version.id),
-                        chunk_id=str(chunk.id),
-                        document_title=doc.original_file_name,
-                        entities=entities,
-                        relationships=relationships
-                    )
-            except Exception as graph_err:
-                logger.error(f"Failed to extract or save graph for chunk {chunk.chunk_order}: {str(graph_err)}")
+                from app.services.document_summary_service import DocumentSummaryService
+                doc_meta = DocumentSummaryService.generate_document_metadata(doc.original_file_name, chunks_data, db=db)
+                doc.metadata_summary = doc_meta
+                logger.info(f"Successfully generated & saved Document Metadata Summary for {doc.original_file_name}")
+            except Exception as meta_err:
+                logger.error(f"Failed to generate Document Metadata Summary for {doc.original_file_name}: {str(meta_err)}")
+
+        # Graph Extraction temporarily suspended per configuration ($0 Graph Overhead)
+        logger.info(f"Graph Extraction temporarily suspended for document {doc.original_file_name} ($0 Graph Overhead)")
             
         # Deactivate old versions and their chunks if processing succeeded
         if version:

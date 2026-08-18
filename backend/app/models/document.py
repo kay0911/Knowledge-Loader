@@ -18,6 +18,7 @@ class Document(Base):
     status = Column(String, nullable=False) # e.g. UPLOADED, PENDING, PROCESSING, READY, FAILED, SKIPPED, DELETED
     is_enabled = Column(Boolean, nullable=False, default=True, server_default='true') # Toggle RAG active state
     routing_result = Column(String, nullable=True) # e.g. NEW, SKIP, UPDATED, REPROCESS
+    metadata_summary = Column(JSON, nullable=True) # Document Metadata Summary JSON (Option 2)
     active_version_id = Column(UUID(as_uuid=True), nullable=True)
     error_message = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

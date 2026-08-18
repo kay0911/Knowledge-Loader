@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # Gemini Settings
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_EMBEDDING_MODEL: str = os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001")
-    GEMINI_LLM_MODEL: str = os.getenv("GEMINI_LLM_MODEL", "gemini-3.1-flash-lite")
+    GEMINI_LLM_MODEL: str = os.getenv("GEMINI_LLM_MODEL", "gemini-3.5-flash-lite")
     GEMINI_EMBEDDING_DIMENSION: int = int(os.getenv("GEMINI_EMBEDDING_DIMENSION", 768))
 
     # Cohere Settings

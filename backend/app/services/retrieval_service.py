@@ -16,17 +16,55 @@ class RetrievalService:
         query: str
     ) -> Tuple[List[DocumentChunk], List[Dict[str, Any]]]:
         """
-        Retrieves context chunks using a Parallel Hybrid Search & RRF Fusion pipeline:
-        1. Parallel Execution of Semantic Search, BM25, and Neo4j Graph Search via ThreadPoolExecutor.
-        2. Reciprocal Rank Fusion (RRF) to score & rank candidates.
-        3. Reranking via Cohere Cross-Encoder.
+        Retrieves context chunks using a Two-Stage Retrieval Pipeline:
+        STAGE 1: Document Metadata Matching (Routes query to top candidate documents via Document Metadata Summaries).
+        STAGE 2: In-Document Scoped Chunk Retrieval (Dense pgvector + BM25 limited ONLY to selected candidate document IDs) + Reranking.
+        Graph search is temporarily suspended ($0 Graph Overhead).
         """
-        logger.info(f"Starting parallel hybrid retrieval for query: '{query}'")
+        logger.info(f"Starting Two-Stage Retrieval Pipeline for query: '{query}'")
         
+        # --- STAGE 1: DOCUMENT METADATA ROUTING ---
+        active_docs = db.query(Document).filter(
+            Document.status.in_(["READY", "SKIPPED"]),
+            Document.is_enabled == True
+        ).all()
+
+        if not active_docs:
+            logger.warning("No active/ready documents found in Database for retrieval.")
+            return [], []
+
+        doc_meta_list = []
+        doc_map_by_id = {}
+        for d in active_docs:
+            doc_map_by_id[str(d.id)] = d
+            meta = d.metadata_summary if d.metadata_summary else {
+                "filename": d.original_file_name,
+                "document_summary": f"Tài liệu {d.original_file_name}",
+                "domain": "GENERAL",
+                "keywords": [d.original_file_name],
+                "hypothetical_questions": [f"Nội dung của {d.original_file_name}"]
+            }
+            meta["doc_id"] = str(d.id)
+            meta["filename"] = d.original_file_name
+            doc_meta_list.append(meta)
+
+        from app.services.two_stage_retrieval_service import TwoStageRetrievalService
+        stage_1_candidates = TwoStageRetrievalService.stage_1_route_documents(
+            query=query,
+            document_metadata_list=doc_meta_list,
+            top_k_docs=3
+        )
+
+        target_doc_ids = [c["metadata"]["doc_id"] for c in stage_1_candidates if "doc_id" in c.get("metadata", {})]
+        if not target_doc_ids:
+            target_doc_ids = [str(d.id) for d in active_docs[:3]]
+
+        selected_filenames = [doc_map_by_id[did].original_file_name for did in target_doc_ids if did in doc_map_by_id]
+        logger.info(f"Stage 1 Document Routing selected target doc IDs: {target_doc_ids} ({selected_filenames})")
+
+        # --- STAGE 2: IN-DOCUMENT SCOPED CHUNK RETRIEVAL ---
         semantic_chunks: List[DocumentChunk] = []
         bm25_chunks: List[DocumentChunk] = []
-        graph_chunks: List[DocumentChunk] = []
-        graph_relationships: List[Dict[str, Any]] = []
 
         def task_semantic():
             try:
@@ -36,69 +74,47 @@ class RetrievalService:
                 ).join(
                     Document, Document.id == DocumentChunk.document_id
                 ).filter(
+                    DocumentChunk.document_id.in_(target_doc_ids),
                     DocumentChunk.is_active == True,
-                    Document.status == "READY",
+                    Document.status.in_(["READY", "SKIPPED"]),
                     Document.is_enabled == True,
                     DocumentChunk.embedding.isnot(None)
                 ).order_by(
                     DocumentChunk.embedding.cosine_distance(query_embedding)
                 ).limit(10).all()
             except Exception as e:
-                logger.error(f"Parallel Semantic search failed: {str(e)}", exc_info=True)
+                logger.error(f"Stage 2 Parallel Semantic search failed: {str(e)}", exc_info=True)
                 return []
 
         def task_bm25():
             try:
-                return BM25Service.search(query, top_k=10)
+                raw_bm25 = BM25Service.search(query, top_k=15)
+                # Filter BM25 chunks strictly to target_doc_ids
+                filtered_bm25 = [c for c in raw_bm25 if str(c.document_id) in target_doc_ids]
+                return filtered_bm25[:10]
             except Exception as e:
-                logger.error(f"Parallel BM25 search failed: {str(e)}", exc_info=True)
+                logger.error(f"Stage 2 Parallel BM25 search failed: {str(e)}", exc_info=True)
                 return []
 
-        def task_graph():
-            try:
-                detected_entities = cls._detect_entities_in_query(query)
-                if not detected_entities:
-                    return [], []
-                logger.info(f"Detected entities in query: {detected_entities}")
-                chunk_ids, rels = cls._traverse_graph_for_entities(detected_entities)
-                if not chunk_ids:
-                    return [], rels
-                chunks = db.query(DocumentChunk).options(
-                    joinedload(DocumentChunk.document)
-                ).join(
-                    Document, Document.id == DocumentChunk.document_id
-                ).filter(
-                    DocumentChunk.id.in_(chunk_ids),
-                    DocumentChunk.is_active == True,
-                    Document.status == "READY",
-                    Document.is_enabled == True
-                ).all()
-                return chunks, rels
-            except Exception as e:
-                logger.error(f"Parallel Graph search failed: {str(e)}", exc_info=True)
-                return [], []
-
-        # Execute 3 retrieval tasks in parallel threads
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        # Execute Stage 2 Semantic & BM25 tasks in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             future_sem = executor.submit(task_semantic)
             future_bm25 = executor.submit(task_bm25)
-            future_graph = executor.submit(task_graph)
 
             semantic_chunks = future_sem.result()
             bm25_chunks = future_bm25.result()
-            graph_chunks, graph_relationships = future_graph.result()
 
-        logger.info(f"Parallel retrieval results -> Semantic: {len(semantic_chunks)}, BM25: {len(bm25_chunks)}, Graph: {len(graph_chunks)}")
+        logger.info(f"Stage 2 Scoped In-Document Retrieval -> Semantic: {len(semantic_chunks)}, BM25: {len(bm25_chunks)}")
 
         # Merge & Rank candidates using Reciprocal Rank Fusion (RRF)
-        fused_candidates = cls._apply_rrf_fusion(semantic_chunks, bm25_chunks, graph_chunks)
+        fused_candidates = cls._apply_rrf_fusion(semantic_chunks, bm25_chunks, [])
         logger.info(f"Total unique RRF-fused candidate chunks: {len(fused_candidates)}")
         
-        # Cohere Reranking (top_n=5)
-        reranked_chunks = RerankService.rerank(query, fused_candidates, top_n=5)
+        # Cohere Reranking (top_n=8 chunks across candidate documents)
+        reranked_chunks = RerankService.rerank(query, fused_candidates, top_n=8)
         logger.info(f"Final reranked search returned {len(reranked_chunks)} context chunks.")
         
-        return reranked_chunks, graph_relationships
+        return reranked_chunks, []
 
     @staticmethod
     def _apply_rrf_fusion(
