@@ -1,6 +1,7 @@
 import uuid
 from typing import List, Dict, Any
 from app.db.neo4j import neo4j_client
+from app.core.config import settings
 from app.core.logging import logger
 
 class GraphService:
@@ -17,8 +18,14 @@ class GraphService:
         """
         Write entities and relationships for a specific chunk to Neo4j.
         """
+        if not settings.ENABLE_NEO4J:
+            return
+
         logger.info(f"Writing extracted graph for chunk {chunk_id} to Neo4j...")
-        with neo4j_client.get_session() as session:
+        session = neo4j_client.get_session()
+        if not session:
+            return
+        with session:
             try:
                 session.execute_write(
                     cls._save_graph_tx,
@@ -152,8 +159,14 @@ class GraphService:
         Delete all relationships (mentions, RELATED_TO) associated with a document,
         then clean up any entities left without any connections.
         """
+        if not settings.ENABLE_NEO4J:
+            return
+
         logger.info(f"Removing all Neo4j graph evidence for document {document_id}...")
-        with neo4j_client.get_session() as session:
+        session = neo4j_client.get_session()
+        if not session:
+            return
+        with session:
             try:
                 session.execute_write(cls._remove_document_evidence_tx, document_id)
                 logger.info(f"Successfully cleaned up graph evidence for document {document_id}.")
@@ -205,10 +218,14 @@ class GraphService:
         Delete relationships associated with specific invalidated chunk IDs,
         then clean up any orphan entities left without connections.
         """
-        if not chunk_ids:
+        if not settings.ENABLE_NEO4J or not chunk_ids:
             return
+
         logger.info(f"Removing Neo4j graph evidence for {len(chunk_ids)} invalidated chunks...")
-        with neo4j_client.get_session() as session:
+        session = neo4j_client.get_session()
+        if not session:
+            return
+        with session:
             try:
                 session.execute_write(cls._remove_invalidated_chunk_evidence_tx, chunk_ids)
                 logger.info(f"Successfully cleaned up graph evidence for {len(chunk_ids)} chunks.")
@@ -248,8 +265,14 @@ class GraphService:
         Delete all relationships (mentions, RELATED_TO) associated with old versions of a document,
         keeping only the active version's relationships. Then clean up isolated entities.
         """
+        if not settings.ENABLE_NEO4J:
+            return
+
         logger.info(f"Removing old Neo4j graph evidence for document {document_id} keeping active version {active_version_id}...")
-        with neo4j_client.get_session() as session:
+        session = neo4j_client.get_session()
+        if not session:
+            return
+        with session:
             try:
                 session.execute_write(cls._remove_old_versions_evidence_tx, document_id, active_version_id)
                 logger.info(f"Successfully cleaned up old version evidence for document {document_id}.")

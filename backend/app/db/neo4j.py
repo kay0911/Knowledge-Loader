@@ -7,6 +7,8 @@ class Neo4jClient:
         self.driver = None
 
     def connect(self):
+        if not settings.ENABLE_NEO4J:
+            return
         if self.driver:
             return
         
@@ -30,6 +32,8 @@ class Neo4jClient:
             logger.info("Closed Neo4j database connection.")
 
     def get_session(self):
+        if not settings.ENABLE_NEO4J:
+            return None
         if not self.driver:
             self.connect()
         return self.driver.session()
