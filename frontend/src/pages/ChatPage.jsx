@@ -465,19 +465,37 @@ function ChatPage() {
         continue;
       }
 
-      // Check if bullet list item (* or -)
-      if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
-        const content = trimmed.substring(2);
+      // Check if bullet list item (* or -) with support for indentation hierarchy (leading spaces)
+      const bulletMatch = line.match(/^(\s*)([\*\-])\s+(.*)$/);
+      if (bulletMatch) {
+        const leadingSpaces = bulletMatch[1].length;
+        const level = Math.min(Math.floor(leadingSpaces / 2), 3); // Level 0, 1, 2, 3
+        const content = bulletMatch[3];
+        
+        // Bullet icons & colors for hierarchy levels
+        const bulletIcons = ['•', '◦', '▪', '‣'];
+        const bulletColors = ['#10b981', '#38bdf8', '#a855f7', '#94a3b8'];
+        const paddingLeftMap = [12, 32, 52, 72];
+
         elements.push(
           <div key={`li-${idx}`} style={{ 
             display: 'flex', 
-            paddingLeft: '16px', 
-            marginBottom: '6px',
+            paddingLeft: `${paddingLeftMap[level] || (12 + level * 20)}px`, 
+            marginBottom: level === 0 ? '6px' : '4px',
+            marginTop: level === 0 ? '4px' : '2px',
             alignItems: 'flex-start',
             lineHeight: '1.6',
             color: 'var(--text-color)'
           }}>
-            <span style={{ marginRight: '8px', color: '#10b981', flexShrink: 0 }}>•</span>
+            <span style={{ 
+              marginRight: '8px', 
+              color: bulletColors[level] || '#10b981', 
+              fontWeight: level === 0 ? 'bold' : 'normal',
+              fontSize: level === 0 ? '1rem' : '0.88rem',
+              flexShrink: 0 
+            }}>
+              {bulletIcons[level] || '•'}
+            </span>
             <span style={{ flex: 1, color: 'var(--text-color)' }}>{parseMarkdownInline(content, citations)}</span>
           </div>
         );
@@ -485,21 +503,33 @@ function ChatPage() {
         continue;
       }
 
-      // Check for Numbered list items (e.g. 1. , 2. )
-      const numMatch = trimmed.match(/^(\d+\.)\s+(.*)$/);
+      // Check for Numbered list items (e.g. 1. , 2. ) with indentation support
+      const numMatch = line.match(/^(\s*)(\d+\.)\s+(.*)$/);
       if (numMatch) {
-        const numPrefix = numMatch[1];
-        const content = numMatch[2];
+        const leadingSpaces = numMatch[1].length;
+        const level = Math.min(Math.floor(leadingSpaces / 2), 3);
+        const numPrefix = numMatch[2];
+        const content = numMatch[3];
+        const paddingLeftMap = [8, 28, 48, 68];
+
         elements.push(
           <div key={`num-${idx}`} style={{ 
             display: 'flex', 
-            paddingLeft: '8px', 
-            marginBottom: '6px',
+            paddingLeft: `${paddingLeftMap[level] || (8 + level * 20)}px`, 
+            marginBottom: level === 0 ? '6px' : '4px',
+            marginTop: level === 0 ? '4px' : '2px',
             alignItems: 'flex-start',
             lineHeight: '1.6',
             color: 'var(--text-color)'
           }}>
-            <span style={{ marginRight: '8px', color: '#10b981', fontWeight: 600, flexShrink: 0 }}>{numPrefix}</span>
+            <span style={{ 
+              marginRight: '8px', 
+              color: level === 0 ? '#10b981' : '#38bdf8', 
+              fontWeight: 600, 
+              flexShrink: 0 
+            }}>
+              {numPrefix}
+            </span>
             <span style={{ flex: 1, color: 'var(--text-color)' }}>{parseMarkdownInline(content, citations)}</span>
           </div>
         );
