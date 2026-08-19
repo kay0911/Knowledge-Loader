@@ -201,13 +201,17 @@ class ChatService:
         graph_relationships = []
         seen_ids = set()
 
-        for sub_q in sub_queries:
+        logger.info(f"Executing Multi-Query Retrieval Engine across {len(sub_queries)} sub-query(ies)...")
+        for idx, sub_q in enumerate(sub_queries, start=1):
+            logger.info(f"  -> Sub-query [{idx}/{len(sub_queries)}]: '{sub_q}'")
             sub_chunks, sub_rels = RetrievalService.retrieve_hybrid(db, sub_q)
             for c in sub_chunks:
                 if c.id not in seen_ids:
                     seen_ids.add(c.id)
                     chunks.append(c)
             graph_relationships.extend(sub_rels)
+        
+        logger.info(f"Multi-query Retrieval complete. Combined unique candidate chunks: {len(chunks)}")
         
         # 2. Format Context
         context_blocks = []

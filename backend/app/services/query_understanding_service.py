@@ -53,8 +53,15 @@ class QueryUnderstandingService:
     @classmethod
     def analyze_query(cls, db, question: str) -> Dict[str, Any]:
         """
-        Analyzes user query. Uses fast-path rules for simple queries ($0 LLM cost),
-        and invokes LLM Query Understanding ONLY for complex/multi-part questions.
+        Analyzes user query using Gemini LLM Understanding pass.
+        Detects intent, prompt injection, and decomposes complex/composite questions into sub_queries.
+        Returns structured dict:
+        {
+          "intent": "CHITCHAT" | "OUT_OF_DOMAIN" | "DOMAIN_QUERY",
+          "is_prompt_injection": bool,
+          "direct_reply": str or None,
+          "sub_queries": List[str]
+        }
         """
         if not question:
             return {
@@ -64,28 +71,14 @@ class QueryUnderstandingService:
                 "sub_queries": []
             }
 
-        # Fast-Path Rule Checks (Chitchat, Prompt Injection, Simple Queries)
-        fast_path = cls._fallback_analysis(question)
-        
-        # If chitchat or prompt injection detected, return fast-path response immediately ($0 LLM cost)
-        if fast_path["intent"] != "DOMAIN_QUERY" or fast_path["is_prompt_injection"]:
-            logger.info(f"Fast-path query analysis matched -> Intent: {fast_path['intent']}, Injection: {fast_path['is_prompt_injection']}")
-            return fast_path
-
-        # For simple single-topic domain queries, bypass LLM Query Understanding ($0 LLM cost)
-        if not cls.is_complex_query(question):
-            logger.info("Single-topic domain query detected. Bypassing LLM Query Understanding pass ($0 LLM cost).")
-            return fast_path
-
-        # LLM Query Understanding Pass for Complex/Multi-part Queries
         template = cls._load_prompt()
         if not template:
-            return fast_path
+            return cls._fallback_analysis(question)
 
         prompt = template.replace("{question}", question)
 
         try:
-            logger.info("Executing LLM Query Understanding Pass for Complex Query...")
+            logger.info("Executing LLM Query Understanding Pass...")
             from app.services.chat_service import ChatService
             response_text = ChatService._generate_with_key_rotation(db, prompt)
             
@@ -96,11 +89,11 @@ class QueryUnderstandingService:
                 json_str = re.sub(r"\n?```$", "", json_str)
 
             data = json.loads(json_str)
-            logger.info(f"LLM Query Understanding Result -> Intent: {data.get('intent')}, Sub-queries: {data.get('sub_queries')}")
+            logger.info(f"LLM Query Understanding Result -> Intent: {data.get('intent')}, Injection: {data.get('is_prompt_injection')}, Sub-queries: {data.get('sub_queries')}")
             return data
         except Exception as e:
-            logger.error(f"LLM Query Understanding failed: {str(e)}. Using fast-path fallback.", exc_info=True)
-            return fast_path
+            logger.error(f"LLM Query Understanding failed: {str(e)}. Using fallback analysis.", exc_info=True)
+            return cls._fallback_analysis(question)
 
     @classmethod
     def _fallback_analysis(cls, question: str) -> Dict[str, Any]:
