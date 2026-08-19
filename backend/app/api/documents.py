@@ -5,6 +5,7 @@ from app.db.postgres import get_db
 from app.schemas.document import DocumentResponse, DocumentDetailResponse, DocumentChunkResponse
 from app.services.document_service import DocumentService
 from app.models.document import DocumentVersion, DocumentChunk
+from app.core.config import settings
 from app.core.logging import logger
 
 router = APIRouter(prefix="/documents", tags=["documents"])
