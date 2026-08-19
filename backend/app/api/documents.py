@@ -45,9 +45,9 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
         raise HTTPException(status_code=400, detail="Filename cannot be empty")
         
     # Check extension
-    _, ext = os_ext = file.filename.split(".")[-1], f".{file.filename.split('.')[-1]}"
-    if ext.lower().replace(".", "") not in ["pdf", "docx", "xlsx"]:
-        raise HTTPException(status_code=400, detail="Unsupported file format. Only PDF, DOCX, XLSX are allowed.")
+    _, ext = file.filename.split(".")[-1], f".{file.filename.split('.')[-1]}"
+    if ext.lower().replace(".", "") not in ["pdf", "docx", "doc", "xlsx", "xls", "csv", "pptx", "ppt", "md", "markdown"]:
+        raise HTTPException(status_code=400, detail="Unsupported file format. Allowed formats: PDF, DOCX, XLSX, PPTX, MD.")
         
     try:
         content = await file.read()

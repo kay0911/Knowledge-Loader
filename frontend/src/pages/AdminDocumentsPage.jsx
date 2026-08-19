@@ -68,10 +68,10 @@ export default function AdminDocumentsPage() {
     if (!file) return;
 
     // Validate size and format
-    const allowedExtensions = ['pdf', 'docx', 'xlsx'];
+    const allowedExtensions = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'pptx', 'ppt', 'md', 'markdown'];
     const fileExtension = file.name.split('.').pop().toLowerCase();
     if (!allowedExtensions.includes(fileExtension)) {
-      setUploadError("Chỉ chấp nhận các tệp định dạng PDF, DOCX, hoặc XLSX.");
+      setUploadError("Chỉ chấp nhận các tệp định dạng PDF, DOCX, XLSX, PPTX, hoặc MD.");
       return;
     }
 
@@ -225,7 +225,7 @@ export default function AdminDocumentsPage() {
               ref={fileInputRef} 
               onChange={handleFileUpload} 
               style={{ display: 'none' }}
-              accept=".pdf,.docx,.xlsx"
+              accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.pptx,.ppt,.md,.markdown"
               disabled={uploading}
             />
             
@@ -242,7 +242,7 @@ export default function AdminDocumentsPage() {
                     Nhấn vào đây để tải tệp lên
                   </p>
                   <p style={{ color: 'var(--text-light)', fontSize: '0.75rem', margin: 0 }}>
-                    Hỗ trợ tệp PDF, DOCX (Word), XLSX (Excel)
+                    Hỗ trợ tệp PDF, DOCX (Word), XLSX (Excel), PPTX (PowerPoint), MD (Markdown)
                   </p>
                 </div>
               </div>
@@ -352,8 +352,8 @@ export default function AdminDocumentsPage() {
                         textTransform: 'uppercase', 
                         fontSize: '0.7rem', 
                         fontWeight: 700, 
-                        color: doc.file_type === 'pdf' ? '#f43f5e' : doc.file_type === 'docx' ? '#3b82f6' : '#10b981',
-                        backgroundColor: doc.file_type === 'pdf' ? 'rgba(244, 63, 94, 0.1)' : doc.file_type === 'docx' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                        color: doc.file_type === 'pdf' ? '#f43f5e' : (doc.file_type === 'docx' || doc.file_type === 'doc') ? '#3b82f6' : (doc.file_type === 'pptx' || doc.file_type === 'ppt') ? '#f59e0b' : (doc.file_type === 'md' || doc.file_type === 'markdown') ? '#a855f7' : '#10b981',
+                        backgroundColor: doc.file_type === 'pdf' ? 'rgba(244, 63, 94, 0.1)' : (doc.file_type === 'docx' || doc.file_type === 'doc') ? 'rgba(59, 130, 246, 0.1)' : (doc.file_type === 'pptx' || doc.file_type === 'ppt') ? 'rgba(245, 158, 11, 0.1)' : (doc.file_type === 'md' || doc.file_type === 'markdown') ? 'rgba(168, 85, 247, 0.1)' : 'rgba(16, 185, 129, 0.1)',
                         padding: '2px 6px',
                         borderRadius: '4px'
                       }}>
