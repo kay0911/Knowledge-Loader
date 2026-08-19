@@ -265,8 +265,8 @@ function ChatPage() {
     { title: "Quy trình hỗ trợ IT", desc: "Cài đặt phần mềm nội bộ liên hệ ai?" }
   ];
 
-  // Inline markdown parser for **bold** and [S1] citations
-  const parseMarkdownInline = (inlineText, citations) => {
+  // Inline markdown parser for `code`, **bold**, *italics*, and [S1] citations
+  const parseMarkdownInline = (inlineText, citations = []) => {
     if (!inlineText) return "";
     
     // Normalize grouped citations like [S1, S4] or [S1, S2, S3] into separate tags [S1][S4]
@@ -275,11 +275,33 @@ function ChatPage() {
       return nums ? nums.map(n => `[S${n}]`).join('') : match;
     });
 
-    // Split by bold patterns (**...**), italics (*...* or _..._), and citations ([S1])
-    const parts = cleanText.split(/(\*\*.*?\*\*|\*.*?\*|_.*?_|\[S\d+\])/gi);
+    // Split by inline code (`...`), bold (**...**), single asterisk italic (*...*), and citations ([S1])
+    const parts = cleanText.split(/(`[^`]+`|\*\*.*?\*\*|\*[^\*]+?\*|\[S\d+\])/gi);
     
     return parts.map((part, idx) => {
       if (!part) return null;
+
+      // Check if inline code (`...`)
+      if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+        const innerCode = part.slice(1, -1);
+        return (
+          <code 
+            key={idx} 
+            style={{ 
+              background: 'rgba(56, 189, 248, 0.12)', 
+              border: '1px solid rgba(56, 189, 248, 0.25)', 
+              color: '#38bdf8', 
+              padding: '2px 6px', 
+              borderRadius: '5px', 
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              fontSize: '0.85em',
+              fontWeight: 500
+            }}
+          >
+            {innerCode}
+          </code>
+        );
+      }
 
       // Check if bold (**...**)
       if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
@@ -287,9 +309,8 @@ function ChatPage() {
         return <strong key={idx} style={{ color: 'var(--text-color)', fontWeight: 600 }}>{parseMarkdownInline(innerText, citations)}</strong>;
       }
 
-      // Check if italic (*...* or _..._)
-      if ((part.startsWith('*') && part.endsWith('*') && part.length >= 2) ||
-          (part.startsWith('_') && part.endsWith('_') && part.length >= 2)) {
+      // Check if italic (*...*)
+      if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
         const innerText = part.slice(1, -1);
         return <em key={idx} style={{ fontStyle: 'italic', color: '#d1d5db' }}>{parseMarkdownInline(innerText, citations)}</em>;
       }
@@ -330,7 +351,7 @@ function ChatPage() {
     });
   };
 
-  // Helper function to render text with markdown tables, headings, lists, bullet points, and bold/italics
+  // Helper function to render text with markdown tables, headings, lists, bullet points, code blocks, and bold/italics
   const renderMessageText = (text, citations = []) => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -340,6 +361,34 @@ function ChatPage() {
     while (idx < lines.length) {
       const line = lines[idx];
       const trimmed = line.trim();
+
+      // Check for Code Block (```lang ... ```)
+      if (trimmed.startsWith('```')) {
+        const lang = trimmed.replace(/^```/, '').trim();
+        const codeLines = [];
+        idx++;
+        while (idx < lines.length && !lines[idx].trim().startsWith('```')) {
+          codeLines.push(lines[idx]);
+          idx++;
+        }
+        if (idx < lines.length && lines[idx].trim().startsWith('```')) {
+          idx++; // Skip closing ```
+        }
+
+        elements.push(
+          <div key={`codeblock-${idx}`} style={{ margin: '14px 0', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', background: '#181825' }}>
+            {lang && (
+              <div style={{ background: 'rgba(255,255,255,0.05)', padding: '4px 12px', fontSize: '0.75rem', color: '#38bdf8', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: 600, textTransform: 'uppercase' }}>
+                {lang}
+              </div>
+            )}
+            <pre style={{ margin: 0, padding: '12px 16px', overflowX: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '0.85rem', color: '#e2e8f0', lineHeight: 1.5 }}>
+              <code>{codeLines.join('\n')}</code>
+            </pre>
+          </div>
+        );
+        continue;
+      }
 
       // Check if start of Markdown Table (line contains '|' and separator line contains '|' and '-')
       const isTableSeparator = (str) => str && str.includes('|') && str.includes('-');
