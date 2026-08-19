@@ -110,8 +110,8 @@ class RetrievalService:
         fused_candidates = cls._apply_rrf_fusion(semantic_chunks, bm25_chunks, [])
         logger.info(f"Total unique RRF-fused candidate chunks: {len(fused_candidates)}")
         
-        # Cohere Reranking (top_n=8 chunks across candidate documents)
-        reranked_chunks = RerankService.rerank(query, fused_candidates, top_n=8)
+        # Cohere Reranking (uses settings.RERANK_TOP_K from .env)
+        reranked_chunks = RerankService.rerank(query, fused_candidates)
         logger.info(f"Final reranked search returned {len(reranked_chunks)} context chunks.")
         
         return reranked_chunks, []
