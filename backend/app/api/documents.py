@@ -51,9 +51,20 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
         
     try:
         content = await file.read()
+        
+        # Validate File Size Limit
+        max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        if len(content) > max_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dung lượng file vượt quá giới hạn tối đa cho phép ({settings.MAX_UPLOAD_SIZE_MB}MB)."
+            )
+
         logger.info(f"Received upload request for file: {file.filename} ({len(content)} bytes)")
         doc = DocumentService.ingest_document(db, file.filename, content)
         return doc
+    except HTTPException as http_ex:
+        raise http_ex
     except Exception as e:
         logger.error(f"Failed to upload document: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to upload document: {str(e)}")

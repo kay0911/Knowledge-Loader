@@ -75,6 +75,12 @@ export default function AdminDocumentsPage() {
       return;
     }
 
+    const MAX_SIZE_MB = 100;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      setUploadError(`Dung lượng tệp vượt quá giới hạn tối đa cho phép (${MAX_SIZE_MB}MB).`);
+      return;
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     setUploading(true);
@@ -242,7 +248,7 @@ export default function AdminDocumentsPage() {
                     Nhấn vào đây để tải tệp lên
                   </p>
                   <p style={{ color: 'var(--text-light)', fontSize: '0.75rem', margin: 0 }}>
-                    Hỗ trợ tệp PDF, DOCX (Word), XLSX (Excel), PPTX (PowerPoint), MD (Markdown)
+                    Hỗ trợ tệp PDF, DOCX (Word), XLSX (Excel), PPTX (PowerPoint), MD (Markdown) — Tối đa 100MB
                   </p>
                 </div>
               </div>
