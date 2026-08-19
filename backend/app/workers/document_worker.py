@@ -106,9 +106,57 @@ def process_job(db: Session, job: ProcessingJob):
             except Exception as meta_err:
                 logger.error(f"Failed to generate Document Metadata Summary for {doc.original_file_name}: {str(meta_err)}")
 
-        # Graph Extraction temporarily suspended per configuration ($0 Graph Overhead)
-        logger.info(f"Graph Extraction temporarily suspended for document {doc.original_file_name} ($0 Graph Overhead)")
-            
+        # MANDATORY EMBEDDING VERIFICATION & AUTO-RETRY PASS
+        # Ensure 100% of chunks for this version have valid vector embeddings before marking READY
+        unembedded_chunks = db.query(DocumentChunk).filter(
+            DocumentChunk.document_version_id == version.id,
+            DocumentChunk.embedding.is_(None)
+        ).all()
+
+        if unembedded_chunks:
+            logger.warning(
+                f"Embedding Verification Warning: Found {len(unembedded_chunks)}/{total_chunks_count} chunks "
+                f"with missing embeddings for {doc.original_file_name}. Initiating automatic retry backfill..."
+            )
+            for retry_attempt in range(1, 4):
+                if not unembedded_chunks:
+                    break
+                logger.info(f"Retrying embedding backfill attempt {retry_attempt}/3 for {len(unembedded_chunks)} chunks...")
+                still_missing = []
+                for chunk in unembedded_chunks:
+                    try:
+                        emb = EmbeddingService.get_embedding(chunk.content, db=db)
+                        if emb and any(v != 0.0 for v in emb):
+                            chunk.embedding = emb
+                        else:
+                            still_missing.append(chunk)
+                    except Exception as backfill_err:
+                        logger.warning(f"Backfill retry failed for chunk {chunk.id}: {str(backfill_err)}")
+                        still_missing.append(chunk)
+                
+                db.commit()
+                unembedded_chunks = still_missing
+                if unembedded_chunks:
+                    time.sleep(2)  # Wait 2s for rate limit key cooldown before retry
+
+        # Final Strict Verification Assertion
+        final_unembedded_count = db.query(DocumentChunk).filter(
+            DocumentChunk.document_version_id == version.id,
+            DocumentChunk.embedding.is_(None)
+        ).count()
+
+        if final_unembedded_count > 0:
+            err_msg = f"Processing failed: {final_unembedded_count}/{total_chunks_count} chunks failed vector embedding generation due to API rate limit."
+            logger.error(f"STRICT EMBEDDING CHECK FAILED for '{doc.original_file_name}': {err_msg}")
+            version.status = "FAILED"
+            version.error_message = err_msg
+            doc.status = "FAILED"
+            doc.error_message = err_msg
+            job.status = "FAILED"
+            job.error_message = err_msg
+            db.commit()
+            return
+
         # Deactivate old versions and their chunks if processing succeeded
         if version:
             db.query(DocumentVersion).filter(
@@ -151,7 +199,7 @@ def process_job(db: Session, job: ProcessingJob):
         # Rebuild BM25 index after document is successfully READY
         BM25Service.rebuild_index()
         
-        logger.info(f"Successfully processed document '{doc.original_file_name}' (Job: {job.id})")
+        logger.info(f"Successfully processed document '{doc.original_file_name}' (Job: {job.id}) - 100% Chunks Verified Embedded")
         
     except Exception as e:
         db.rollback()
@@ -173,11 +221,47 @@ def process_job(db: Session, job: ProcessingJob):
         except Exception as inner_e:
             logger.error(f"Error setting job status to FAILED: {str(inner_e)}")
 
+def audit_and_repair_unembedded_chunks(db: Session):
+    """
+    Self-Healing Audit: Scans active chunks across all READY documents for any missing embeddings
+    (e.g., from past rate limit interrupts) and automatically repairs them.
+    """
+    try:
+        unembedded = db.query(DocumentChunk).join(Document, DocumentChunk.document_id == Document.id).filter(
+            Document.status == "READY",
+            DocumentChunk.is_active == True,
+            DocumentChunk.embedding.is_(None)
+        ).all()
+        
+        if unembedded:
+            logger.info(f"Self-Healing Audit: Found {len(unembedded)} un-embedded active chunks in READY documents. Repairing...")
+            repaired_count = 0
+            for chunk in unembedded:
+                try:
+                    emb = EmbeddingService.get_embedding(chunk.content, db=db)
+                    if emb and any(v != 0.0 for v in emb):
+                        chunk.embedding = emb
+                        repaired_count += 1
+                        db.commit()
+                        logger.info(f"Self-Healing Audit: Repaired embedding for Chunk {chunk.id}")
+                except Exception as repair_err:
+                    logger.error(f"Self-Healing Audit repair failed for Chunk {chunk.id}: {str(repair_err)}")
+            if repaired_count > 0:
+                logger.info(f"Self-Healing Audit: Successfully repaired {repaired_count}/{len(unembedded)} missing embeddings.")
+    except Exception as audit_err:
+        logger.error(f"Self-Healing Audit encountered error: {str(audit_err)}")
+
 def worker_loop():
     logger.info("Background worker loop started.")
+    loop_count = 0
     while True:
         db = SessionLocal()
         try:
+            loop_count += 1
+            # Run Self-Healing Audit every 30 loop iterations (~1 min)
+            if loop_count % 30 == 1:
+                audit_and_repair_unembedded_chunks(db)
+
             # Query oldest pending job
             job = db.query(ProcessingJob).filter(ProcessingJob.status == "PENDING").order_by(ProcessingJob.created_at.asc()).first()
             if job:
@@ -191,4 +275,4 @@ def worker_loop():
 def start_worker():
     thread = threading.Thread(target=worker_loop, daemon=True)
     thread.start()
-    logger.info("Background worker thread launched.")
+    logger.info("Background worker thread launched with Self-Healing Audit enabled.")
