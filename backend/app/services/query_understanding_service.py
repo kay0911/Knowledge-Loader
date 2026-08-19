@@ -20,16 +20,41 @@ class QueryUnderstandingService:
         return cls._prompt_template
 
     @classmethod
+    def is_complex_query(cls, question: str) -> bool:
+        """
+        Determines if a question is complex/composite or multi-part
+        that warrants calling LLM decomposition pass.
+        """
+        if not question:
+            return False
+
+        q_lower = question.strip().lower()
+
+        # Multiple question marks e.g. "Hỏi 1? Hỏi 2?"
+        if q_lower.count("?") > 1 or q_lower.count(";") > 1:
+            return True
+
+        # Explicit comparison or multi-part keywords
+        complex_keywords = [
+            "so sánh", "khác nhau", "giống nhau", "phân biệt", "đối chiếu",
+            "vừa", "đồng thời", "và cả", "cả 2", "cả hai", "mặt khác",
+            "vụ việc", "mục 1 và", "điều 1 và"
+        ]
+        if any(k in q_lower for k in complex_keywords):
+            return True
+
+        # Check for multiple case/doc IDs e.g., "VV-2025-004 ... VV-2025-002"
+        case_matches = re.findall(r"(?:vv|tc|fsd|wo|po|pr|md)[-_\s]?\d{3,}", q_lower)
+        if len(set(case_matches)) > 1:
+            return True
+
+        return False
+
+    @classmethod
     def analyze_query(cls, db, question: str) -> Dict[str, Any]:
         """
-        Analyzes user query using Gemini LLM Understanding pass.
-        Returns structured dict:
-        {
-          "intent": "CHITCHAT" | "OUT_OF_DOMAIN" | "DOMAIN_QUERY",
-          "is_prompt_injection": bool,
-          "direct_reply": str or None,
-          "sub_queries": List[str]
-        }
+        Analyzes user query. Uses fast-path rules for simple queries ($0 LLM cost),
+        and invokes LLM Query Understanding ONLY for complex/multi-part questions.
         """
         if not question:
             return {
@@ -39,14 +64,28 @@ class QueryUnderstandingService:
                 "sub_queries": []
             }
 
+        # Fast-Path Rule Checks (Chitchat, Prompt Injection, Simple Queries)
+        fast_path = cls._fallback_analysis(question)
+        
+        # If chitchat or prompt injection detected, return fast-path response immediately ($0 LLM cost)
+        if fast_path["intent"] != "DOMAIN_QUERY" or fast_path["is_prompt_injection"]:
+            logger.info(f"Fast-path query analysis matched -> Intent: {fast_path['intent']}, Injection: {fast_path['is_prompt_injection']}")
+            return fast_path
+
+        # For simple single-topic domain queries, bypass LLM Query Understanding ($0 LLM cost)
+        if not cls.is_complex_query(question):
+            logger.info("Single-topic domain query detected. Bypassing LLM Query Understanding pass ($0 LLM cost).")
+            return fast_path
+
+        # LLM Query Understanding Pass for Complex/Multi-part Queries
         template = cls._load_prompt()
         if not template:
-            return cls._fallback_analysis(question)
+            return fast_path
 
         prompt = template.replace("{question}", question)
 
         try:
-            logger.info("Executing LLM Query Understanding Pass...")
+            logger.info("Executing LLM Query Understanding Pass for Complex Query...")
             from app.services.chat_service import ChatService
             response_text = ChatService._generate_with_key_rotation(db, prompt)
             
@@ -57,11 +96,11 @@ class QueryUnderstandingService:
                 json_str = re.sub(r"\n?```$", "", json_str)
 
             data = json.loads(json_str)
-            logger.info(f"LLM Query Understanding Result -> Intent: {data.get('intent')}, Injection: {data.get('is_prompt_injection')}, Sub-queries: {data.get('sub_queries')}")
+            logger.info(f"LLM Query Understanding Result -> Intent: {data.get('intent')}, Sub-queries: {data.get('sub_queries')}")
             return data
         except Exception as e:
-            logger.error(f"LLM Query Understanding failed: {str(e)}. Using fallback analysis.", exc_info=True)
-            return cls._fallback_analysis(question)
+            logger.error(f"LLM Query Understanding failed: {str(e)}. Using fast-path fallback.", exc_info=True)
+            return fast_path
 
     @classmethod
     def _fallback_analysis(cls, question: str) -> Dict[str, Any]:
