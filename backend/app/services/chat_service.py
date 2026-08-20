@@ -215,7 +215,7 @@ class ChatService:
         logger.info(f"Multi-query Retrieval complete. Combined unique candidate chunks: {len(chunks)}")
         
         # 2. Format Context with Document Overview Summaries + Granular Chunks
-        context_str = cls._build_context(chunks)
+        context_str, source_records = cls._build_context(chunks)
         
         # 3. Call Gemini LLM
         answer = ""
@@ -238,36 +238,18 @@ class ChatService:
         
         # 4. Compile Citations
         citations = []
-        # Find which source IDs (e.g., [S1], [S2]) were actually used in the answer
         cited_indices = re.findall(r"\[S(\d+)\]", answer)
         cited_nums = {int(idx) - 1 for idx in cited_indices if idx.isdigit()}
         
-        # Build citation records
         for idx in sorted(cited_nums):
-            if 0 <= idx < len(chunks):
-                chunk = chunks[idx]
-                snippet = chunk.content
-                citations.append({
-                    "source_id": f"S{idx+1}",
-                    "document_id": str(chunk.document_id),
-                    "file_name": chunk.document.original_file_name,
-                    "page_number": chunk.page_number,
-                    "page_start": getattr(chunk, "page_start", None) or chunk.page_number,
-                    "page_end": getattr(chunk, "page_end", None) or chunk.page_number,
-                    "heading": chunk.heading,
-                    "heading_path": getattr(chunk, "heading_path", None),
-                    "sheet_name": chunk.sheet_name,
-                    "row_start": chunk.row_start,
-                    "row_end": chunk.row_end,
-                    "snippet": snippet
-                })
+            if 0 <= idx < len(source_records):
+                citations.append(source_records[idx])
                 
-        # Fallback: if no citations found in text but we had chunks, list top 3 chunks as reference
-        if not citations and chunks:
-            # Check if answer contains refusal message
+        # Fallback: if no citations found in text but we had sources, list top 3 as reference
+        if not citations and source_records:
             is_refusal = "chưa tìm thấy đủ thông tin" in answer or "lỗi" in answer.lower()
             if not is_refusal:
-                # Add top 3 chunks as general references
+                citations = source_records[:3]
                 for i in range(min(3, len(chunks))):
                     chunk = chunks[i]
                     snippet = chunk.content
@@ -391,7 +373,7 @@ class ChatService:
             graph_relationships.extend(sub_rels)
         
         # 2. Format Context with Document Overview Summaries + Granular Chunks
-        context_str = cls._build_context(chunks)
+        context_str, source_records = cls._build_context(chunks)
         
         # 3. Call Gemini LLM in stream mode (or Mock for benchmark)
         answer = ""
@@ -440,23 +422,13 @@ class ChatService:
         cited_nums = {int(idx) - 1 for idx in cited_indices if idx.isdigit()}
         
         for idx in sorted(cited_nums):
-            if 0 <= idx < len(chunks):
-                chunk = chunks[idx]
-                snippet = chunk.content
-                citations.append({
-                    "source_id": f"S{idx+1}",
-                    "document_id": str(chunk.document_id),
-                    "file_name": chunk.document.original_file_name,
-                    "page_number": chunk.page_number,
-                    "page_start": getattr(chunk, "page_start", None) or chunk.page_number,
-                    "page_end": getattr(chunk, "page_end", None) or chunk.page_number,
-                    "heading": chunk.heading,
-                    "heading_path": getattr(chunk, "heading_path", None),
-                    "sheet_name": chunk.sheet_name,
-                    "row_start": chunk.row_start,
-                    "row_end": chunk.row_end,
-                    "snippet": snippet
-                })
+            if 0 <= idx < len(source_records):
+                citations.append(source_records[idx])
+                
+        if not citations and source_records:
+            is_refusal = "chưa tìm thấy đủ thông tin" in answer or "lỗi" in answer.lower()
+            if not is_refusal:
+                citations = source_records[:3]
                 
         # 5. Record to PostgreSQL
         resolved_session_id = session_id or str(uuid_mod.uuid4())
@@ -486,10 +458,15 @@ class ChatService:
     def _normalize_citation_tags(text: str) -> str:
         """
         Converts grouped citations like [S1, S4] or [S1, S2, S3] or [S1; S2] into separate tags [S1][S4].
+        Strips accidental long title citation tags like [TÓM TẮT TỔNG QUAN TÀI LIỆU: ...].
         Ensures frontend Markdown renderer can parse each source pill correctly.
         """
         if not text:
             return text
+
+        # Strip accidental verbose title brackets
+        text = re.sub(r"\[TÓM TẮT TỔNG QUAN TÀI LIỆU:[^\]]*\]", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\[BẢN TÓM TẮT:[^\]]*\]", "", text, flags=re.IGNORECASE)
 
         def replacer(match):
             content = match.group(0)
@@ -502,13 +479,17 @@ class ChatService:
         return re.sub(pattern, replacer, text, flags=re.IGNORECASE)
 
     @classmethod
-    def _build_context(cls, chunks: List[DocumentChunk]) -> str:
+    def _build_context(cls, chunks: List[DocumentChunk]) -> Tuple[str, List[Dict[str, Any]]]:
         """
-        Formats retrieved DocumentChunks with Source IDs [S1], [S2]...
-        and prepends Document Overview Summaries for all unique target documents.
+        Formats retrieved DocumentChunks with sequential Source IDs [S1], [S2]...
+        Assigns Source IDs to Document Overview Summaries first, followed by granular chunks.
+        Returns tuple of (formatted_context_str, full_source_records_list).
         """
-        # Collect unique document metadata summaries
-        doc_summaries_blocks = []
+        context_blocks = []
+        source_records = []
+        source_counter = 1
+
+        # 1. Document Overview Summaries (Sequential Source IDs S1, S2...)
         seen_doc_ids = set()
         for chunk in chunks:
             if chunk.document and chunk.document.id not in seen_doc_ids:
@@ -518,16 +499,36 @@ class ChatService:
                     summary_text = doc.metadata_summary.get("document_summary")
                     domain_text = doc.metadata_summary.get("domain", "")
                     if summary_text:
+                        source_id = f"S{source_counter}"
+                        source_counter += 1
                         domain_info = f" (Lĩnh vực: {domain_text})" if domain_text else ""
-                        doc_summaries_blocks.append(
-                            f"[TÓM TẮT TỔNG QUAN TÀI LIỆU: {doc.original_file_name}{domain_info}]\n"
-                            f"{summary_text}"
+                        
+                        block = (
+                            f"Source ID: {source_id}\n"
+                            f"Tên file: {doc.original_file_name}{domain_info}\n"
+                            f"Nội dung (Tóm tắt tổng quan tài liệu): {summary_text}"
                         )
+                        context_blocks.append(block)
+                        
+                        source_records.append({
+                            "source_id": source_id,
+                            "document_id": str(doc.id),
+                            "file_name": doc.original_file_name,
+                            "page_number": None,
+                            "page_start": None,
+                            "page_end": None,
+                            "heading": "Tóm tắt tổng quan tài liệu",
+                            "heading_path": ["Tóm tắt tổng quan tài liệu"],
+                            "sheet_name": None,
+                            "row_start": None,
+                            "row_end": None,
+                            "snippet": summary_text
+                        })
 
-        # Build chunk context blocks
-        context_blocks = []
-        for i, chunk in enumerate(chunks):
-            source_id = f"S{i+1}"
+        # 2. Granular Chunks (Sequential Source IDs)
+        for chunk in chunks:
+            source_id = f"S{source_counter}"
+            source_counter += 1
             meta = f"Source ID: {source_id}\nTên file: {chunk.document.original_file_name}"
             if chunk.page_number:
                 meta += f", Trang: {chunk.page_number}"
@@ -538,13 +539,25 @@ class ChatService:
             
             block = f"{meta}\nNội dung: {chunk.content}"
             context_blocks.append(block)
+            
+            source_records.append({
+                "source_id": source_id,
+                "document_id": str(chunk.document_id),
+                "file_name": chunk.document.original_file_name,
+                "page_number": chunk.page_number,
+                "page_start": getattr(chunk, "page_start", None) or chunk.page_number,
+                "page_end": getattr(chunk, "page_end", None) or chunk.page_number,
+                "heading": chunk.heading,
+                "heading_path": getattr(chunk, "heading_path", None),
+                "sheet_name": chunk.sheet_name,
+                "row_start": chunk.row_start,
+                "row_end": chunk.row_end,
+                "snippet": chunk.content,
+                "chunk_id": str(chunk.id)
+            })
 
-        all_blocks = []
-        if doc_summaries_blocks:
-            all_blocks.append("\n\n".join(doc_summaries_blocks))
-        all_blocks.extend(context_blocks)
-
-        return "\n\n---\n\n".join(all_blocks)
+        context_str = "\n---\n".join(context_blocks)
+        return context_str, source_records
 
     @staticmethod
     def _is_prompt_injection(question: str) -> bool:
