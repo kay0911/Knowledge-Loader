@@ -11,7 +11,7 @@ class CacheService:
         Queries past Q&A history within the last 24 hours for exact or high-similarity matching questions.
         Returns cached (answer, citations) tuple if a cache hit occurs, or None if cache miss.
         """
-        if not question or len(question.strip()) < 5:
+        if not question or len(question.strip()) < 2:
             return None
 
         q_clean = question.strip().lower()

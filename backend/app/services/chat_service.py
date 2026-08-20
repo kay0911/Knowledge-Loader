@@ -150,8 +150,8 @@ class ChatService:
         cls._configure()
         start_time = time.time()
 
-        # 1. Fast Guardrail: Semantic Cache Check (Temporarily suspended for testing)
-        cached_result = None # CacheService.get_semantic_cache(db, question)
+        # 1. Fast Guardrail: Semantic Cache Check
+        cached_result = CacheService.get_semantic_cache(db, question)
         if cached_result:
             cached_ans, cached_cits = cached_result
             resolved_session_id = session_id or str(uuid_mod.uuid4())
