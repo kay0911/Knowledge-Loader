@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.logging import logger
 from app.models.chat import ChatLog
+from app.models.document import DocumentChunk
 from app.services.retrieval_service import RetrievalService
 from app.services.cache_service import CacheService
 from app.services.intent_router_service import IntentRouterService
@@ -213,22 +214,8 @@ class ChatService:
         
         logger.info(f"Multi-query Retrieval complete. Combined unique candidate chunks: {len(chunks)}")
         
-        # 2. Format Context
-        context_blocks = []
-        for i, chunk in enumerate(chunks):
-            source_id = f"S{i+1}"
-            meta = f"Source ID: {source_id}\nTên file: {chunk.document.original_file_name}"
-            if chunk.page_number:
-                meta += f", Trang: {chunk.page_number}"
-            if chunk.heading:
-                meta += f", Heading: {chunk.heading}"
-            if chunk.sheet_name:
-                meta += f", Sheet: {chunk.sheet_name} (Dòng {chunk.row_start}-{chunk.row_end})"
-            
-            block = f"{meta}\nNội dung: {chunk.content}"
-            context_blocks.append(block)
-            
-        context_str = "\n---\n".join(context_blocks)
+        # 2. Format Context with Document Overview Summaries + Granular Chunks
+        context_str = cls._build_context(chunks)
         
         # 3. Call Gemini LLM
         answer = ""
@@ -403,22 +390,8 @@ class ChatService:
                     chunks.append(c)
             graph_relationships.extend(sub_rels)
         
-        # 2. Format Context
-        context_blocks = []
-        for i, chunk in enumerate(chunks):
-            source_id = f"S{i+1}"
-            meta = f"Source ID: {source_id}\nTên file: {chunk.document.original_file_name}"
-            if chunk.page_number:
-                meta += f", Trang: {chunk.page_number}"
-            if chunk.heading:
-                meta += f", Heading: {chunk.heading}"
-            if chunk.sheet_name:
-                meta += f", Sheet: {chunk.sheet_name} (Dòng {chunk.row_start}-{chunk.row_end})"
-            
-            block = f"{meta}\nNội dung: {chunk.content}"
-            context_blocks.append(block)
-            
-        context_str = "\n---\n".join(context_blocks)
+        # 2. Format Context with Document Overview Summaries + Granular Chunks
+        context_str = cls._build_context(chunks)
         
         # 3. Call Gemini LLM in stream mode (or Mock for benchmark)
         answer = ""
@@ -527,6 +500,51 @@ class ChatService:
 
         pattern = r"\[\s*S?\d+(?:\s*[\s,;&]\s*S?\d+)+\s*\]"
         return re.sub(pattern, replacer, text, flags=re.IGNORECASE)
+
+    @classmethod
+    def _build_context(cls, chunks: List[DocumentChunk]) -> str:
+        """
+        Formats retrieved DocumentChunks with Source IDs [S1], [S2]...
+        and prepends Document Overview Summaries for all unique target documents.
+        """
+        # Collect unique document metadata summaries
+        doc_summaries_blocks = []
+        seen_doc_ids = set()
+        for chunk in chunks:
+            if chunk.document and chunk.document.id not in seen_doc_ids:
+                seen_doc_ids.add(chunk.document.id)
+                doc = chunk.document
+                if doc.metadata_summary and isinstance(doc.metadata_summary, dict):
+                    summary_text = doc.metadata_summary.get("document_summary")
+                    domain_text = doc.metadata_summary.get("domain", "")
+                    if summary_text:
+                        domain_info = f" (Lĩnh vực: {domain_text})" if domain_text else ""
+                        doc_summaries_blocks.append(
+                            f"[TÓM TẮT TỔNG QUAN TÀI LIỆU: {doc.original_file_name}{domain_info}]\n"
+                            f"{summary_text}"
+                        )
+
+        # Build chunk context blocks
+        context_blocks = []
+        for i, chunk in enumerate(chunks):
+            source_id = f"S{i+1}"
+            meta = f"Source ID: {source_id}\nTên file: {chunk.document.original_file_name}"
+            if chunk.page_number:
+                meta += f", Trang: {chunk.page_number}"
+            if chunk.heading:
+                meta += f", Heading: {chunk.heading}"
+            if chunk.sheet_name:
+                meta += f", Sheet: {chunk.sheet_name} (Dòng {chunk.row_start}-{chunk.row_end})"
+            
+            block = f"{meta}\nNội dung: {chunk.content}"
+            context_blocks.append(block)
+
+        all_blocks = []
+        if doc_summaries_blocks:
+            all_blocks.append("\n\n".join(doc_summaries_blocks))
+        all_blocks.extend(context_blocks)
+
+        return "\n\n---\n\n".join(all_blocks)
 
     @staticmethod
     def _is_prompt_injection(question: str) -> bool:
