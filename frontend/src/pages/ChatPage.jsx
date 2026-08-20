@@ -6,6 +6,8 @@ import {
   Database, HelpCircle, ArrowRight, Sparkles, Plus, ArrowUp, RefreshCw, X, ChevronDown, ChevronUp
 } from 'lucide-react';
 
+import katex from 'katex';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 function CollapsibleCitations({ citations, onSelectCitation }) {
@@ -265,7 +267,33 @@ function ChatPage() {
     { title: "Quy trình hỗ trợ IT", desc: "Cài đặt phần mềm nội bộ liên hệ ai?" }
   ];
 
-  // Inline markdown parser for `code`, **bold**, *italics*, and [S1] citations
+  // Helper to render KaTeX math formula safely
+  const renderMathFormula = (formulaStr, isDisplayMode = false) => {
+    try {
+      const html = katex.renderToString(formulaStr, {
+        displayMode: isDisplayMode,
+        throwOnError: false,
+        output: 'htmlAndMathml'
+      });
+      return (
+        <span 
+          style={{ 
+            display: isDisplayMode ? 'block' : 'inline-block',
+            margin: isDisplayMode ? '10px 0' : '0 4px',
+            verticalAlign: 'middle',
+            overflowX: 'auto',
+            maxWidth: '100%',
+            color: '#34d399'
+          }}
+          dangerouslySetInnerHTML={{ __html: html }} 
+        />
+      );
+    } catch (e) {
+      return <code style={{ color: '#38bdf8' }}>{formulaStr}</code>;
+    }
+  };
+
+  // Inline markdown parser for math ($...$, $$...$$), `code`, **bold**, *italics*, and [S1] citations
   const parseMarkdownInline = (inlineText, citations = []) => {
     if (!inlineText) return "";
     
@@ -275,11 +303,23 @@ function ChatPage() {
       return nums ? nums.map(n => `[S${n}]`).join('') : match;
     });
 
-    // Split by inline code (`...`), bold (**...**), single asterisk italic (*...*), and citations ([S1])
-    const parts = cleanText.split(/(`[^`]+`|\*\*.*?\*\*|\*[^\*]+?\*|\[S\d+\])/gi);
+    // Split by Math ($$ ... $$, $ ... $, \[ ... \], \( ... \)), inline code (`...`), bold (**...**), single asterisk italic (*...*), and citations ([S1])
+    const parts = cleanText.split(/(\$\$[\s\S]+?\$\$|\$[^\$]+?\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|`[^`]+`|\*\*.*?\*\*|\*[^\*]+?\*|\[S\d+\])/gi);
     
     return parts.map((part, idx) => {
       if (!part) return null;
+
+      // Check if display math ($$...$$ or \[...\])
+      if ((part.startsWith('$$') && part.endsWith('$$') && part.length >= 4) || (part.startsWith('\\[') && part.endsWith('\\]'))) {
+        const mathContent = part.startsWith('$$') ? part.slice(2, -2) : part.slice(2, -2);
+        return <React.Fragment key={idx}>{renderMathFormula(mathContent, true)}</React.Fragment>;
+      }
+
+      // Check if inline math ($...$ or \(...\))
+      if ((part.startsWith('$') && part.endsWith('$') && part.length >= 2) || (part.startsWith('\\(') && part.endsWith('\\)'))) {
+        const mathContent = part.startsWith('$') ? part.slice(1, -1) : part.slice(2, -2);
+        return <React.Fragment key={idx}>{renderMathFormula(mathContent, false)}</React.Fragment>;
+      }
 
       // Check if inline code (`...`)
       if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
