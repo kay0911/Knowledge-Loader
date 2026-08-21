@@ -250,6 +250,18 @@ body {
 }
 
 /* ChatGPT style layout utility classes */
+.chatgpt-container {
+  display: flex;
+  flex-direction: row;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background-color: var(--main-bg);
+}
+
 .chatgpt-sidebar {
   background-color: var(--sidebar-bg);
   color: var(--sidebar-color);
@@ -261,6 +273,18 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
+}
+
+.chatgpt-sidebar.closed {
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border-right: none !important;
+}
+
+.chatgpt-sidebar.open {
+  width: 260px;
+  min-width: 260px;
 }
 
 .chatgpt-main {
