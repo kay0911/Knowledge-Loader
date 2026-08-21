@@ -951,11 +951,11 @@ class ParserService:
                     divider_line = "| " + " | ".join(["---"] * len(active_col_indices)) + " |\n"
                     
                     if tbl_title:
-                        title_prefix = f"### {tbl_title}\n\n"
+                        title_prefix = f"### Sheet: {sheet_name} - {tbl_title}\n\n"
                     else:
-                        title_prefix = f"### Bảng {tbl_idx} (Sheet: {sheet_name})\n\n"
+                        title_prefix = f"### Sheet: {sheet_name} (Bảng {tbl_idx})\n\n"
 
-                    header_md = f"Sheet: {sheet_name}\n\n" + title_prefix + header_line + divider_line
+                    header_md = title_prefix + header_line + divider_line
 
                     batch_rows = []
                     current_char_count = len(header_md)

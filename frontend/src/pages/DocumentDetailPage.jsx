@@ -460,7 +460,10 @@ export default function DocumentDetailPage() {
                     padding: '12px',
                     borderRadius: '6px',
                     border: '1px solid var(--table-border)',
-                    fontFamily: chunk.sheet_name ? 'monospace' : 'inherit'
+                    fontFamily: chunk.sheet_name ? 'monospace' : 'inherit',
+                    overflowX: 'auto',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box'
                   }}>
                     {chunk.content}
                   </div>
