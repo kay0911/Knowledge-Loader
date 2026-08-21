@@ -7,7 +7,7 @@ import docx
 import openpyxl
 import zipfile
 from collections import Counter
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Tuple, Optional
 from app.schemas.normalized_block import NormalizedBlock
 from app.core.logging import logger
 
@@ -442,7 +442,89 @@ class ParserService:
             logger.error(f"Error parsing DOCX {file_path}: {str(e)}")
             raise e
 
-        return blocks
+    @staticmethod
+    def _is_section_title(row: tuple) -> bool:
+        if not row:
+            return False
+        non_empty = [(i, str(c).strip()) for i, c in enumerate(row) if c is not None and str(c).strip()]
+        if not non_empty or len(non_empty) > 3:
+            return False
+        first_idx, first_val = non_empty[0]
+        if re.match(r'^\d+[\.\:]\s*', first_val) or first_val.isupper() or len(first_val) > 25:
+            if len(non_empty) == 1:
+                return True
+            if len(non_empty) <= 3 and len(first_val) > 20:
+                return True
+        return False
+
+    @staticmethod
+    def _is_header_row_candidate(row: tuple) -> Tuple[bool, int]:
+        if not row:
+            return False, -999
+        non_empty = [str(c).strip() for c in row if c is not None and str(c).strip()]
+        if len(non_empty) < 2:
+            return False, -999
+        title_like = 0
+        pure_num = 0
+        for val in non_empty:
+            if val.lower().startswith(("http://", "https://", "www.")):
+                continue
+            if len(val) < 50 and not re.match(r'^\d+(\.\d+)?%?$', val):
+                title_like += 1
+            elif re.match(r'^\d+(\.\d+)?%?$', val):
+                pure_num += 1
+        score = title_like * 2 - pure_num * 3
+        is_candidate = title_like >= 2 and pure_num <= title_like
+        return is_candidate, score
+
+    @classmethod
+    def _split_sheet_into_tables(cls, rows_list: List[tuple]) -> List[Dict[str, Any]]:
+        tables = []
+        current_title = ""
+        current_rows = []
+        
+        for r_idx, row in enumerate(rows_list):
+            if not row or not any(c is not None and str(c).strip() for c in row):
+                if current_rows:
+                    tables.append({
+                        "title": current_title,
+                        "rows": current_rows
+                    })
+                    current_rows = []
+                    current_title = ""
+                continue
+            
+            if cls._is_section_title(row):
+                if current_rows:
+                    tables.append({
+                        "title": current_title,
+                        "rows": current_rows
+                    })
+                    current_rows = []
+                non_empty_vals = [str(c).strip() for c in row if c is not None and str(c).strip()]
+                current_title = " - ".join(non_empty_vals)
+                continue
+            
+            if current_rows and len(current_rows) >= 2:
+                is_cand, score = cls._is_header_row_candidate(row)
+                prev_cand, prev_score = cls._is_header_row_candidate(current_rows[-1])
+                if is_cand and not prev_cand and score > 3:
+                    tables.append({
+                        "title": current_title,
+                        "rows": current_rows
+                    })
+                    current_rows = []
+                    current_title = ""
+
+            current_rows.append(row)
+            
+        if current_rows:
+            tables.append({
+                "title": current_title,
+                "rows": current_rows
+            })
+            
+        return tables
 
     @staticmethod
     def parse_xlsx(file_path: str) -> List[NormalizedBlock]:
@@ -819,82 +901,100 @@ class ParserService:
                     continue
 
                 # ==================================================
-                # MODE B: STANDARD MARKDOWN PIPE TABLE MODE (WITH ACTIVE COLUMN SQUEEZING)
+                # MODE B: STANDARD MARKDOWN PIPE TABLE MODE (MULTI-TABLE SEGMENTED)
                 # ==================================================
-                valid_data_rows = [
-                    r for r in rows_list[best_header_row_idx + 1:] 
-                    if r and any(c is not None and str(c).strip() for c in r)
-                ]
+                table_segments = ParserService._split_sheet_into_tables(rows_list)
+                logger.info(f"Segmented sheet '{sheet_name}' into {len(table_segments)} table(s).")
+                sheet_blocks = []
 
-                # Identify active column indices that contain non-empty data across valid data rows
-                active_col_indices = []
-                for col_i in range(len(headers)):
-                    has_data = any(
-                        col_i < len(r) and r[col_i] is not None and str(r[col_i]).strip() != ""
-                        for r in valid_data_rows[:200]
-                    )
-                    if has_data:
-                        active_col_indices.append(col_i)
+                for tbl_idx, tbl in enumerate(table_segments, start=1):
+                    tbl_title = tbl.get("title", "")
+                    tbl_rows = tbl.get("rows", [])
+                    if not tbl_rows:
+                        continue
 
-                if not active_col_indices:
-                    active_col_indices = list(range(min(len(headers), 5)))
+                    # Find best header row inside this segment
+                    best_header_idx = 0
+                    best_score = -999
+                    for i, r in enumerate(tbl_rows[:5]):
+                        is_cand, score = ParserService._is_header_row_candidate(r)
+                        if score > best_score:
+                            best_score = score
+                            best_header_idx = i
 
-                active_headers = [headers[i] if i < len(headers) else "" for i in active_col_indices]
-                header_line = "| " + " | ".join(active_headers) + " |\n"
-                divider_line = "| " + " | ".join(["---"] * len(active_col_indices)) + " |\n"
-                header_md = f"Sheet: {sheet_name}\n\n" + header_line + divider_line
+                    header_row = tbl_rows[best_header_idx]
+                    data_rows = tbl_rows[best_header_idx + 1:]
 
-                batch_rows = []
-                batch_start_row = 1
-                current_char_count = len(header_md)
-                data_rows_count = 0     # Count POPULATED DATA ROWS ONLY
-                total_sheet_chars = 0   # Total accumulated char length for this sheet
-                sheet_blocks = []       # Temporary blocks list for this sheet
-                is_large_sheet = False  # Flag for sheets > 200 rows OR > 20,000 chars
-                raw_row_index = best_header_row_idx + 1
+                    # Active column indices for this segment
+                    max_c = max(len(r) for r in tbl_rows)
+                    active_col_indices = []
+                    for c_i in range(max_c):
+                        has_val = any(
+                            c_i < len(r) and r[c_i] is not None and str(r[c_i]).strip() != ""
+                            for r in tbl_rows
+                        )
+                        if has_val:
+                            active_col_indices.append(c_i)
 
-                for row in rows_list[best_header_row_idx + 1:]:
-                    raw_row_index += 1
+                    if not active_col_indices:
+                        active_col_indices = list(range(min(max_c, 5)))
 
-                    # Interleave Images anchored at this exact row sequentially!
-                    if raw_row_index in curr_sheet_imgs:
-                        for img_info in curr_sheet_imgs[raw_row_index]:
-                            img_tag = f"<img src='{img_info['rel_path']}' alt='{img_info['alt']}' />"
+                    # Headers
+                    segment_headers = []
+                    for c_i in active_col_indices:
+                        val = ""
+                        if c_i < len(header_row) and header_row[c_i] is not None:
+                            val = str(header_row[c_i]).strip().replace('\n', ' ').replace('|', '\\|')
+                        segment_headers.append(val if val else f"Col_{c_i+1}")
+
+                    header_line = "| " + " | ".join(segment_headers) + " |\n"
+                    divider_line = "| " + " | ".join(["---"] * len(active_col_indices)) + " |\n"
+                    
+                    if tbl_title:
+                        title_prefix = f"### {tbl_title}\n\n"
+                    else:
+                        title_prefix = f"### Bảng {tbl_idx} (Sheet: {sheet_name})\n\n"
+
+                    header_md = f"Sheet: {sheet_name}\n\n" + title_prefix + header_line + divider_line
+
+                    batch_rows = []
+                    current_char_count = len(header_md)
+                    data_rows_count = 0
+
+                    for r in data_rows:
+                        row_vals = [
+                            str(r[i]).strip().replace('\n', ' ').replace('|', '\\|') 
+                            if i < len(r) and r[i] is not None else "" 
+                            for i in active_col_indices
+                        ]
+                        if not any(row_vals):
+                            continue
+
+                        row_line = "| " + " | ".join(row_vals) + " |\n"
+                        row_len = len(row_line)
+                        data_rows_count += 1
+
+                        if current_char_count + row_len >= 1150 or len(batch_rows) >= 20:
                             source_order += 1
+                            table_content = header_md + "".join(batch_rows)
                             sheet_blocks.append(NormalizedBlock(
                                 block_id=str(uuid.uuid4()),
                                 source_type="xlsx",
-                                block_type="image",
-                                content=img_tag,
-                                image_path=img_info['full_path'],
-                                requires_llm_summary=True,
-                                heading_path=[f"Sheet: {sheet_name}"],
+                                block_type="table",
+                                content=table_content.strip(),
+                                heading_path=[f"Sheet: {sheet_name}", tbl_title or f"Bảng {tbl_idx}"],
+                                sheet_name=sheet_name,
+                                table_id=f"sheet_{sheet_name}_tbl_{tbl_idx}",
+                                requires_llm_summary=False,
                                 source_order=source_order
                             ))
+                            batch_rows = [row_line]
+                            current_char_count = len(header_md) + row_len
+                        else:
+                            batch_rows.append(row_line)
+                            current_char_count += row_len
 
-                    # Skip completely blank rows
-                    if not any(c is not None and str(c).strip() for c in row if c is not None):
-                        continue
-
-                    row_vals = [
-                        str(row[i]).strip().replace('\n', ' ').replace('|', '\\|') 
-                        if i < len(row) and row[i] is not None else "" 
-                        for i in active_col_indices
-                    ]
-                    row_line = "| " + " | ".join(row_vals) + " |\n"
-                    row_len = len(row_line)
-
-                    data_rows_count += 1
-                    total_sheet_chars += row_len
-
-                    # Rule: If sheet exceeds 200 populated rows OR 20,000 total chars (Exhaustive Listing):
-                    # Flag as large sheet and STOP streaming immediately!
-                    if data_rows_count > 200 or total_sheet_chars > 20000:
-                        logger.warning(f"Sheet '{sheet_name}' in {os.path.basename(file_path)} exceeds 200 rows / 20K chars (Exhaustive Listing). Filtering to keep 1ST SINGLE CHUNK ONLY.")
-                        is_large_sheet = True
-                        break
-
-                    if current_char_count + row_len >= 1150 or len(batch_rows) >= 20:
+                    if batch_rows:
                         source_order += 1
                         table_content = header_md + "".join(batch_rows)
                         sheet_blocks.append(NormalizedBlock(
@@ -902,61 +1002,14 @@ class ParserService:
                             source_type="xlsx",
                             block_type="table",
                             content=table_content.strip(),
-                            heading_path=[f"Sheet: {sheet_name}"],
+                            heading_path=[f"Sheet: {sheet_name}", tbl_title or f"Bảng {tbl_idx}"],
                             sheet_name=sheet_name,
-                            row_start=batch_start_row,
-                            row_end=data_rows_count,
-                            table_id=f"sheet_{sheet_name}",
+                            table_id=f"sheet_{sheet_name}_tbl_{tbl_idx}",
                             requires_llm_summary=False,
                             source_order=source_order
                         ))
-                        batch_rows = [row_line]
-                        batch_start_row = data_rows_count
-                        current_char_count = len(header_md) + row_len
-                    else:
-                        batch_rows.append(row_line)
-                        current_char_count += row_len
 
-                # Flush remaining batch if normal sheet
-                if batch_rows and not is_large_sheet:
-                    source_order += 1
-                    table_content = header_md + "".join(batch_rows)
-                    sheet_blocks.append(NormalizedBlock(
-                        block_id=str(uuid.uuid4()),
-                        source_type="xlsx",
-                        block_type="table",
-                        content=table_content.strip(),
-                        heading_path=[f"Sheet: {sheet_name}"],
-                        sheet_name=sheet_name,
-                        row_start=batch_start_row,
-                        row_end=data_rows_count,
-                        table_id=f"sheet_{sheet_name}",
-                        requires_llm_summary=False,
-                        source_order=source_order
-                    ))
-
-                # IF LARGE SHEET (> 200 ROWS OR > 20,000 CHARS): KEEP ONLY THE FIRST CHUNK!
-                if is_large_sheet:
-                    if sheet_blocks:
-                        blocks.append(sheet_blocks[0])
-                    elif batch_rows:
-                        source_order += 1
-                        table_content = header_md + "".join(batch_rows)
-                        blocks.append(NormalizedBlock(
-                            block_id=str(uuid.uuid4()),
-                            source_type="xlsx",
-                            block_type="table",
-                            content=table_content.strip(),
-                            heading_path=[f"Sheet: {sheet_name}"],
-                            sheet_name=sheet_name,
-                            row_start=1,
-                            row_end=len(batch_rows),
-                            table_id=f"sheet_{sheet_name}",
-                            requires_llm_summary=False,
-                            source_order=source_order
-                        ))
-                else:
-                    blocks.extend(sheet_blocks)
+                blocks.extend(sheet_blocks)
 
         except Exception as e:
             logger.error(f"Error parsing XLSX {file_path}: {str(e)}")
