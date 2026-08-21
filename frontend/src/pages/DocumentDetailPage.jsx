@@ -313,10 +313,10 @@ export default function DocumentDetailPage() {
       </div>
 
       {/* Grid: Versions History (Left) & Document Chunks List (Right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '4fr 8fr', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 4fr) minmax(0, 8fr)', gap: '24px' }}>
         
         {/* Left Column: Version Log */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
           <div className="glass-panel" style={{ padding: '20px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--table-border)', paddingBottom: '12px', color: 'var(--text-color)' }}>
               <Layers className="w-4 h-4 text-indigo-400" />
@@ -399,7 +399,7 @@ export default function DocumentDetailPage() {
         </div>
 
         {/* Right Column: Chunks View */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--table-border)', paddingBottom: '12px', color: 'var(--text-color)' }}>
             <Hash className="w-4 h-4 text-emerald-400" />
             Đoạn văn bản trích xuất (Active Chunks) ({chunks.length})
