@@ -458,7 +458,16 @@ class ChatService:
             logger.error(f"Failed to save streaming chat log: {str(e)}")
             
         # 6. Yield metadata at the end of the stream
-        yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': citations}, ensure_ascii=False)}\n\n"
+        metadata_payload = {
+            'type': 'metadata', 
+            'chat_id': str(chat_log.id), 
+            'session_id': resolved_session_id, 
+            'citations': citations
+        }
+        if history_mode and query_for_retrieval and query_for_retrieval != question:
+            metadata_payload['rewritten_question'] = query_for_retrieval
+
+        yield f"data: {json.dumps(metadata_payload, ensure_ascii=False)}\n\n"
 
     @staticmethod
     def _normalize_citation_tags(text: str) -> str:

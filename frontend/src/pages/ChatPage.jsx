@@ -88,9 +88,16 @@ function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [activeCitation, setActiveCitation] = useState(null);
   const [currentSessionId, setCurrentSessionId] = useState(sessionIdParam || null);
-  const [historyMode, setHistoryMode] = useState(false);
+  const [historyMode, setHistoryMode] = useState(() => {
+    const saved = localStorage.getItem('history_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isSnippetExpanded, setIsSnippetExpanded] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('history_mode', historyMode);
+  }, [historyMode]);
 
   useEffect(() => {
     setIsSnippetExpanded(false);
@@ -164,10 +171,10 @@ function ChatPage() {
     setLoading(true);
 
     try {
+      const activeSessionId = currentSessionId || sessionIdParam || searchParams.get('session_id');
       const payload = { question: userQuestion, history_mode: historyMode };
-      // If we're in an existing session, include the session_id
-      if (currentSessionId) {
-        payload.session_id = currentSessionId;
+      if (activeSessionId) {
+        payload.session_id = activeSessionId;
       }
 
       const token = localStorage.getItem('access_token');
@@ -232,7 +239,8 @@ function ChatPage() {
                   const updated = [...prev];
                   updated[updated.length - 1] = {
                     ...updated[updated.length - 1],
-                    citations: data.citations || []
+                    citations: data.citations || [],
+                    rewritten_question: data.rewritten_question || null
                   };
                   return updated;
                 });
@@ -682,6 +690,24 @@ function ChatPage() {
                     {msg.sender === 'user' ? 'U' : 'AI'}
                   </div>
                   <div className="chatgpt-text">
+                    {msg.sender === 'ai' && msg.rewritten_question && (
+                      <div style={{
+                        fontSize: '0.75rem',
+                        color: '#38bdf8',
+                        background: 'rgba(56, 189, 248, 0.1)',
+                        border: '1px solid rgba(56, 189, 248, 0.25)',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        marginBottom: '10px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <Sparkles className="w-3 h-3 text-sky-400" />
+                        <span>Tổng hợp theo lịch sử: <em>"{msg.rewritten_question}"</em></span>
+                      </div>
+                    )}
+
                     <div style={{ whiteSpace: 'pre-wrap' }}>
                       {msg.sender === 'user' ? msg.text : renderMessageText(msg.text, msg.citations)}
                     </div>
