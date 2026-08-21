@@ -139,7 +139,7 @@ class ChatService:
         raise last_error
 
     @classmethod
-    def ask(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False) -> Tuple[ChatLog, List[Dict[str, Any]]]:
+    def ask(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False, user_id: str = None) -> Tuple[ChatLog, List[Dict[str, Any]]]:
         """
         Main Q&A Pipeline:
         1. Fast Guardrail: Semantic Cache Check
@@ -157,6 +157,7 @@ class ChatService:
             cached_ans, cached_cits = cached_result
             resolved_session_id = session_id or str(uuid_mod.uuid4())
             chat_log = ChatLog(
+                user_id=user_id,
                 session_id=resolved_session_id,
                 question=question,
                 answer=cached_ans,
@@ -181,6 +182,7 @@ class ChatService:
             reply = direct_reply or "Xin chào! Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp."
             resolved_session_id = session_id or str(uuid_mod.uuid4())
             chat_log = ChatLog(
+                user_id=user_id,
                 session_id=resolved_session_id,
                 question=question,
                 answer=reply,
@@ -271,6 +273,7 @@ class ChatService:
         # 6. Record to PostgreSQL
         resolved_session_id = session_id or str(uuid_mod.uuid4())
         chat_log = ChatLog(
+            user_id=user_id,
             session_id=resolved_session_id,
             question=question,
             answer=answer,
@@ -292,7 +295,7 @@ class ChatService:
         return chat_log, citations
 
     @classmethod
-    def ask_stream(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False):
+    def ask_stream(cls, db: Session, question: str, session_id: str = None, history_mode: bool = False, user_id: str = None):
         """
         Streaming version of ask:
         Yields content chunks in SSE format first, then yields metadata at the end.
@@ -306,6 +309,7 @@ class ChatService:
             cached_ans, cached_cits = cached_result
             resolved_session_id = session_id or str(uuid_mod.uuid4())
             chat_log = ChatLog(
+                user_id=user_id,
                 session_id=resolved_session_id,
                 question=question,
                 answer=cached_ans,
@@ -336,6 +340,7 @@ class ChatService:
             reply = direct_reply or "Xin chào! Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp."
             resolved_session_id = session_id or str(uuid_mod.uuid4())
             chat_log = ChatLog(
+                user_id=user_id,
                 session_id=resolved_session_id,
                 question=question,
                 answer=reply,
@@ -433,6 +438,7 @@ class ChatService:
         # 5. Record to PostgreSQL
         resolved_session_id = session_id or str(uuid_mod.uuid4())
         chat_log = ChatLog(
+            user_id=user_id,
             session_id=resolved_session_id,
             question=question,
             answer=answer,

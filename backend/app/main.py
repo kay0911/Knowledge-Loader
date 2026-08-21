@@ -57,10 +57,16 @@ try:
             ON document_chunks
             USING hnsw (embedding vector_cosine_ops);
         """))
-        # Add session_id column to chat_logs if it doesn't exist, and fill null values
-        logger.info("Running database migrations for ChatLog session_id...")
+        # Add session_id & user_id columns to chat_logs if they don't exist, and assign existing logs to Admin
+        logger.info("Running database migrations for ChatLog session_id & user_id...")
         conn.execute(text("ALTER TABLE chat_logs ADD COLUMN IF NOT EXISTS session_id UUID;"))
+        conn.execute(text("ALTER TABLE chat_logs ADD COLUMN IF NOT EXISTS user_id UUID;"))
         conn.execute(text("UPDATE chat_logs SET session_id = id WHERE session_id IS NULL;"))
+        conn.execute(text("""
+            UPDATE chat_logs 
+            SET user_id = (SELECT id FROM users WHERE role = 'ADMIN' ORDER BY created_at ASC LIMIT 1)
+            WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE role = 'ADMIN');
+        """))
         logger.info("Running database migrations for Document metadata_summary...")
         conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS metadata_summary JSON;"))
         logger.info("Running database migrations for DocumentChunk metadata columns...")
