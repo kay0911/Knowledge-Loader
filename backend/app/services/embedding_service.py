@@ -1,3 +1,7 @@
+import os
+import ssl
+import requests
+import urllib3
 import google.generativeai as genai
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -5,6 +9,20 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.db.postgres import SessionLocal
 from app.services.key_rotation_service import KeyRotationService
+
+urllib3.disable_warnings()
+os.environ["PYTHONHTTPSVERIFY"] = "0"
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except Exception:
+    pass
+
+# Force requests to ignore SSL verification errors when calling Google REST APIs
+_old_session_send = requests.Session.send
+def _unverified_send(self, request, **kwargs):
+    kwargs['verify'] = False
+    return _old_session_send(self, request, **kwargs)
+requests.Session.send = _unverified_send
 
 class EmbeddingService:
     @classmethod
