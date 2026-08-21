@@ -102,7 +102,7 @@ function AppContent() {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !loading) {
       fetchChatHistory();
       
       const handleHistoryUpdate = () => fetchChatHistory();
@@ -114,7 +114,7 @@ function AppContent() {
         clearInterval(interval);
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loading]);
 
   const handleNewChat = () => {
     setActiveLogId(null);

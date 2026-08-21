@@ -5,6 +5,18 @@ const AuthContext = createContext(null);
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
+// Attach token synchronously to any outgoing request
+axios.interceptors.request.use(
+  (config) => {
+    const storedToken = localStorage.getItem('access_token');
+    if (storedToken) {
+      config.headers.Authorization = `Bearer ${storedToken}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(localStorage.getItem('access_token') || null);
   const [user, setUser] = useState(() => {
@@ -13,24 +25,24 @@ export function AuthProvider({ children }) {
   });
   const [loading, setLoading] = useState(true);
 
-  // Setup Axios Authorization Interceptor
-  useEffect(() => {
-    const reqInterceptor = axios.interceptors.request.use(
-      (config) => {
-        const storedToken = localStorage.getItem('access_token');
-        if (storedToken) {
-          config.headers.Authorization = `Bearer ${storedToken}`;
-        }
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user_info');
+  };
 
+  // Setup Response Interceptor to handle 401 (excluding login attempts)
+  useEffect(() => {
     const resInterceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response && error.response.status === 401) {
-          // Unauthenticated token expired
+        if (
+          error.response && 
+          error.response.status === 401 && 
+          !error.config?.url?.includes('/auth/login')
+        ) {
+          console.warn("401 Unauthorized received. Logging out...");
           logout();
         }
         return Promise.reject(error);
@@ -38,30 +50,41 @@ export function AuthProvider({ children }) {
     );
 
     return () => {
-      axios.interceptors.request.eject(reqInterceptor);
       axios.interceptors.response.eject(resInterceptor);
     };
   }, []);
 
   // Fetch current user details on initial load if token exists
   useEffect(() => {
+    let isMounted = true;
     if (token) {
       axios.get(`${API_BASE_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       .then((res) => {
-        setUser(res.data);
-        localStorage.setItem('user_info', JSON.stringify(res.data));
+        if (isMounted) {
+          setUser(res.data);
+          localStorage.setItem('user_info', JSON.stringify(res.data));
+        }
       })
-      .catch(() => {
-        logout();
+      .catch((err) => {
+        console.error("Failed to validate token on startup:", err);
+        if (isMounted) {
+          logout();
+        }
       })
       .finally(() => {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       });
     } else {
       setLoading(false);
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [token]);
 
   const login = async (username, password) => {
@@ -72,13 +95,6 @@ export function AuthProvider({ children }) {
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('user_info', JSON.stringify(userInfo));
     return userInfo;
-  };
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user_info');
   };
 
   const updateUserProfile = (updatedUser) => {
