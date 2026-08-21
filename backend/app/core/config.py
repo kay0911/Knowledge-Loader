@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     COHERE_RERANK_MODEL: str = os.getenv("COHERE_RERANK_MODEL", "rerank-multilingual-v3.0")
     RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", 5))
 
+    # Auth & JWT Settings
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "knowledge_loader_super_secret_jwt_key_2026_x89a")
+    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60 * 24 * 7))  # 7 days
+    INITIAL_ADMIN_USERNAME: str = os.getenv("INITIAL_ADMIN_USERNAME", "admin")
+    INITIAL_ADMIN_PASSWORD: str = os.getenv("INITIAL_ADMIN_PASSWORD", "admin123")
+
     # Mock Mode for Performance Benchmark / Load Testing
     MOCK_AI_SERVICES: bool = os.getenv("MOCK_AI_SERVICES", "false").lower() in ("true", "1", "yes")
 

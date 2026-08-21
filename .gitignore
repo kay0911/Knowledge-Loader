@@ -1,5 +1,6 @@
 # Vibe coding folder
 vibecode/
+test_documents/
 
 # Environment variables
 .env

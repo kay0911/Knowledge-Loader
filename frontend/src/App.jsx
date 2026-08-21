@@ -1,19 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import AdminDocumentsPage from './pages/AdminDocumentsPage';
 import DocumentDetailPage from './pages/DocumentDetailPage';
+import AdminUsersPage from './pages/AdminUsersPage';
+import ProfilePage from './pages/ProfilePage';
+import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import axios from 'axios';
 import { 
   MessageSquare, Layers, Menu, Plus, ChevronLeft, 
   Trash2, HelpCircle, FileText, CheckCircle2,
   AlertTriangle, Clock, RefreshCw, Sparkles, FolderKanban,
-  Sun, Moon, Check, X
+  Sun, Moon, Check, X, Users, User, LogOut, Shield
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color, #0f172a)', color: '#94a3b8' }}>
+        Đang khởi động ứng dụng...
+      </div>
+    );
+  }
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const { user, isAuthenticated, loading } = useAuth();
+  if (loading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role !== 'ADMIN' && user?.role !== 'SUBADMIN') {
+    return <Navigate to="/chat" replace />;
+  }
+  return children;
+}
+
 function AppContent() {
+  const { user, logout, isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
   const [chatHistory, setChatHistory] = useState([]);
   const [historyLimit, setHistoryLimit] = useState(10);
@@ -62,6 +92,7 @@ function AppContent() {
   }, [location]);
 
   const fetchChatHistory = async () => {
+    if (!isAuthenticated) return;
     try {
       const res = await axios.get(`${API_BASE_URL}/chat/`);
       setChatHistory(res.data);
@@ -71,25 +102,24 @@ function AppContent() {
   };
 
   useEffect(() => {
-    fetchChatHistory();
-    
-    // Listen to custom event when a chat session is created or updated
-    const handleHistoryUpdate = () => fetchChatHistory();
-    window.addEventListener('chat-history-updated', handleHistoryUpdate);
+    if (isAuthenticated) {
+      fetchChatHistory();
+      
+      const handleHistoryUpdate = () => fetchChatHistory();
+      window.addEventListener('chat-history-updated', handleHistoryUpdate);
 
-    // Light fallback sync every 60 seconds (instead of 5 seconds) to reduce server load
-    const interval = setInterval(fetchChatHistory, 60000);
-    return () => {
-      window.removeEventListener('chat-history-updated', handleHistoryUpdate);
-      clearInterval(interval);
-    };
-  }, []);
+      const interval = setInterval(fetchChatHistory, 60000);
+      return () => {
+        window.removeEventListener('chat-history-updated', handleHistoryUpdate);
+        clearInterval(interval);
+      };
+    }
+  }, [isAuthenticated]);
 
   const handleNewChat = () => {
     setActiveLogId(null);
     navigate('/chat');
     if (isMobile) setSidebarOpen(false);
-    // Dispatch a custom event to tell ChatPage to clear state if it's already on /chat
     window.dispatchEvent(new Event('new-chat-triggered'));
   };
 
@@ -98,39 +128,59 @@ function AppContent() {
       e.stopPropagation();
       e.preventDefault();
     }
-    if (!sessionId) return;
-    
     try {
       await axios.delete(`${API_BASE_URL}/chat/session/${sessionId}`);
-      setChatHistory(prev => prev.filter(item => String(item.session_id) !== String(sessionId)));
+      setChatHistory(prev => prev.filter(item => item.session_id !== sessionId));
       setConfirmDeleteId(null);
       if (location.search.includes(`session_id=${sessionId}`)) {
         navigate('/chat');
-        window.dispatchEvent(new Event('new-chat-triggered'));
       }
     } catch (err) {
-      console.error("Delete chat session error:", err);
-      alert(err.response?.data?.detail || "Không thể xóa đoạn đối thoại này.");
+      console.error("Error deleting session:", err);
     }
   };
 
+  // If on login page, don't show main sidebar layout
+  if (location.pathname === '/login') {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+      </Routes>
+    );
+  }
+
+  const isAdminOrSubadmin = user?.role === 'ADMIN' || user?.role === 'SUBADMIN';
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--main-bg)', color: 'var(--text-color)', position: 'relative' }}>
-      
-      {/* Mobile Backdrop Overlay */}
+    <div className="chatgpt-container">
+      {/* Overlay for mobile when sidebar is open */}
       {isMobile && sidebarOpen && (
-        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+        <div 
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 80,
+            backdropFilter: 'blur(2px)'
+          }}
+        />
       )}
 
-      {/* Collapsible Sidebar */}
-      <aside className={`chatgpt-sidebar ${sidebarOpen ? '' : 'closed'}`} style={{ 
-        width: sidebarOpen ? '260px' : '0px', 
-        minWidth: sidebarOpen ? '260px' : '0px', 
-        maxWidth: sidebarOpen ? '260px' : '0px',
-        flexShrink: 0,
-        boxSizing: 'border-box',
-        overflow: 'hidden'
-      }}>
+      {/* Navigation Sidebar */}
+      <aside 
+        className={`chatgpt-sidebar ${sidebarOpen ? 'open' : 'closed'}`}
+        style={{
+          position: isMobile ? 'fixed' : 'relative',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          zIndex: 90,
+          flexShrink: 0,
+          boxSizing: 'border-box',
+          overflow: 'hidden'
+        }}
+      >
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '12px', width: '260px', maxWidth: '260px', boxSizing: 'border-box', overflowX: 'hidden' }}>
           
           {/* Header */}
@@ -147,8 +197,8 @@ function AppContent() {
                 fontWeight: 'bold',
                 color: '#fff',
                 fontSize: '0.85rem'
-              }}>G</div>
-              <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-color)' }}>GraphRAG AI</span>
+              }}>K</div>
+              <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-color)' }}>Knowledge Loader</span>
             </div>
             
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -181,7 +231,7 @@ function AppContent() {
               fontSize: '0.9rem',
               fontWeight: 500,
               cursor: 'pointer',
-              marginBottom: '20px',
+              marginBottom: '16px',
               transition: 'background-color 0.2s, border-color 0.2s, color 0.2s'
             }}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--sidebar-item-hover)'}
@@ -194,7 +244,7 @@ function AppContent() {
           </button>
 
           {/* Navigation Links */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
             <NavLink 
               to={activeLogId ? `/chat?session_id=${activeLogId}` : "/chat"} 
               className={({ isActive }) => `chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
@@ -202,16 +252,41 @@ function AppContent() {
               onClick={() => { if (isMobile) setSidebarOpen(false); }}
             >
               <MessageSquare className="w-4 h-4" />
-              Trợ lý AI
+              Trợ lý AI Chat
             </NavLink>
+
+            {isAdminOrSubadmin && (
+              <>
+                <NavLink 
+                  to="/admin/documents" 
+                  className={({ isActive }) => `chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
+                  style={{ textDecoration: 'none' }}
+                  onClick={() => { if (isMobile) setSidebarOpen(false); }}
+                >
+                  <FolderKanban className="w-4 h-4" />
+                  Quản lý tài liệu
+                </NavLink>
+
+                <NavLink 
+                  to="/admin/users" 
+                  className={({ isActive }) => `chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
+                  style={{ textDecoration: 'none' }}
+                  onClick={() => { if (isMobile) setSidebarOpen(false); }}
+                >
+                  <Users className="w-4 h-4" />
+                  Quản lý người dùng
+                </NavLink>
+              </>
+            )}
+
             <NavLink 
-              to="/admin" 
+              to="/profile" 
               className={({ isActive }) => `chatgpt-sidebar-item ${isActive ? 'active' : ''}`}
               style={{ textDecoration: 'none' }}
               onClick={() => { if (isMobile) setSidebarOpen(false); }}
             >
-              <FolderKanban className="w-4 h-4" />
-              Quản lý tài liệu
+              <User className="w-4 h-4" />
+              Hồ sơ cá nhân
             </NavLink>
           </div>
 
@@ -328,16 +403,6 @@ function AppContent() {
                             flexShrink: 0
                           }}
                           title="Xóa đoạn chat này"
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.color = '#ef4444';
-                            e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
-                            e.currentTarget.style.opacity = '1';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.color = 'var(--text-light)';
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                            e.currentTarget.style.opacity = '0.7';
-                          }}
                         >
                           <Trash2 className="w-3.5 h-3.5" style={{ pointerEvents: 'none' }} />
                         </button>
@@ -359,11 +424,8 @@ function AppContent() {
                       textAlign: 'center',
                       width: '100%',
                       marginTop: '4px',
-                      borderRadius: '6px',
-                      transition: 'background-color 0.2s'
+                      borderRadius: '6px'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
                     Xem thêm...
                   </button>
@@ -379,24 +441,58 @@ function AppContent() {
             borderTop: '1px solid var(--sidebar-border)', 
             display: 'flex', 
             alignItems: 'center', 
-            gap: '10px' 
+            justifyContent: 'space-between',
+            gap: '8px'
           }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 'bold',
-              color: '#fff',
-              fontSize: '0.9rem'
-            }}>D</div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)' }}>Dion Plus</span>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-light)' }}>Chế độ Trợ lý RAG</span>
+            <div 
+              onClick={() => navigate('/profile')}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flex: 1, minWidth: 0 }}
+            >
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 'bold',
+                color: '#fff',
+                fontSize: '0.9rem',
+                flexShrink: 0
+              }}>
+                {user?.username ? user.username[0].toUpperCase() : 'U'}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user?.full_name || user?.username || 'Người dùng'}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: user?.role === 'ADMIN' ? '#f87171' : user?.role === 'SUBADMIN' ? '#38bdf8' : '#34d399', fontWeight: 600 }}>
+                  {user?.role || 'USER'}
+                </span>
+              </div>
             </div>
+
+            <button
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+              title="Đăng xuất"
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px',
+                color: '#f87171',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
 
         </div>
@@ -427,11 +523,15 @@ function AppContent() {
         {/* Dynamic Route views */}
         <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
           <Routes>
-            <Route path="/" element={<ChatPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/admin" element={<AdminDocumentsPage />} />
-            <Route path="/documents" element={<AdminDocumentsPage />} />
-            <Route path="/documents/:id" element={<DocumentDetailPage />} />
+            <Route path="/" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+            <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/admin" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
+            <Route path="/admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
+            <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+            <Route path="/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
+            <Route path="/documents/:id" element={<AdminRoute><DocumentDetailPage /></AdminRoute>} />
+            <Route path="*" element={<Navigate to="/chat" replace />} />
           </Routes>
         </div>
 
@@ -444,7 +544,9 @@ function AppContent() {
 export default function App() {
   return (
     <Router>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </Router>
   );
 }

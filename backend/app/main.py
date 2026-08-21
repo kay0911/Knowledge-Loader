@@ -21,13 +21,19 @@ from app.db.postgres import engine, Base
 from app.api.documents import router as documents_router
 from app.api.chat import router as chat_router
 from app.api.keys import router as keys_router
+from app.api.auth import router as auth_router
+from app.api.users import router as users_router
 from app.workers.document_worker import start_worker
 from app.core.logging import logger
+from app.core.config import settings
+from app.core.security import hash_password
 
 from sqlalchemy import text
 from app.models.document import Document, DocumentVersion, DocumentChunk, ProcessingJob
 from app.models.chat import ChatLog
 from app.models.llm_key import LLMKey
+from app.models.user import User
+from app.db.postgres import SessionLocal
 
 # Ensure vector extension exists before table creation
 try:
@@ -67,6 +73,28 @@ try:
 except Exception as migration_err:
     logger.error(f"Migration failed: {str(migration_err)}")
 
+def ensure_initial_admin():
+    db = SessionLocal()
+    try:
+        admin_user = db.query(User).filter(User.role == "ADMIN").first()
+        if not admin_user:
+            logger.info("No ADMIN user found. Seeding initial default Admin account...")
+            initial_admin = User(
+                username=settings.INITIAL_ADMIN_USERNAME,
+                email="admin@knowledge.loader",
+                full_name="Quản trị viên Hệ thống",
+                hashed_password=hash_password(settings.INITIAL_ADMIN_PASSWORD),
+                role="ADMIN",
+                is_active=True
+            )
+            db.add(initial_admin)
+            db.commit()
+            logger.info(f"Initial Admin created: Username='{settings.INITIAL_ADMIN_USERNAME}', Password='{settings.INITIAL_ADMIN_PASSWORD}'")
+    except Exception as e:
+        logger.error(f"Error seeding initial admin account: {str(e)}")
+    finally:
+        db.close()
+
 app = FastAPI(
     title="GraphRAG Knowledge Loader MVP API",
     description="Backend service for loading and processing documents for Knowledge Retrieval.",
@@ -85,6 +113,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     logger.info("Application starting up...")
+    ensure_initial_admin()
     start_worker()
 
 @app.get("/")
@@ -96,6 +125,8 @@ def health_check():
     return {"status": "ok"}
 
 # Include routers
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(users_router, prefix="/api/users", tags=["users"])
 app.include_router(documents_router, prefix="/api")
 app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
 app.include_router(keys_router, prefix="/api")
