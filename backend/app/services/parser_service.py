@@ -443,6 +443,36 @@ class ParserService:
             raise e
 
     @staticmethod
+    def _format_excel_cell_value(val: Any) -> str:
+        if val is None:
+            return ""
+        if isinstance(val, (datetime.datetime, datetime.date)):
+            if isinstance(val, datetime.datetime) and (val.hour != 0 or val.minute != 0 or val.second != 0):
+                return val.strftime("%Y-%m-%d %H:%M:%S")
+            return val.strftime("%Y-%m-%d")
+            
+        s_val = str(val).strip()
+        if not s_val:
+            return ""
+            
+        # Trim trailing 00:00:00 from string datetimes
+        s_val = re.sub(r'(\d{4}-\d{2}-\d{2})\s+00:00:00', r'\1', s_val)
+        
+        # Round floating point noise (e.g. 0.9999999999999999 -> 1, 1.4999999999999998 -> 1.5)
+        if isinstance(val, float) or re.match(r'^-?\d+\.\d+$', s_val):
+            try:
+                f_val = float(s_val)
+                rounded = round(f_val, 4)
+                if rounded == int(rounded):
+                    s_val = str(int(rounded))
+                else:
+                    s_val = f"{rounded:g}"
+            except Exception:
+                pass
+                
+        return s_val.replace('\n', ' ').replace('|', '\\|')
+
+    @staticmethod
     def _is_section_title(row: tuple) -> bool:
         if not row:
             return False
@@ -944,7 +974,7 @@ class ParserService:
                     for c_i in active_col_indices:
                         val = ""
                         if c_i < len(header_row) and header_row[c_i] is not None:
-                            val = str(header_row[c_i]).strip().replace('\n', ' ').replace('|', '\\|')
+                            val = ParserService._format_excel_cell_value(header_row[c_i])
                         segment_headers.append(val if val else f"Col_{c_i+1}")
 
                     header_line = "| " + " | ".join(segment_headers) + " |\n"
@@ -963,7 +993,7 @@ class ParserService:
 
                     for r in data_rows:
                         row_vals = [
-                            str(r[i]).strip().replace('\n', ' ').replace('|', '\\|') 
+                            ParserService._format_excel_cell_value(r[i])
                             if i < len(r) and r[i] is not None else "" 
                             for i in active_col_indices
                         ]
