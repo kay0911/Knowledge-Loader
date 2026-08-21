@@ -170,13 +170,22 @@ function ChatPage() {
         payload.session_id = currentSessionId;
       }
 
+      const token = localStorage.getItem('access_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
+        }
         throw new Error("HTTP error " + response.status);
       }
 
