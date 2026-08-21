@@ -17,33 +17,8 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color, #0f172a)', color: '#94a3b8' }}>
-        Đang khởi động ứng dụng...
-      </div>
-    );
-  }
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-}
-
-function AdminRoute({ children }) {
-  const { user, isAuthenticated, loading } = useAuth();
-  if (loading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.role !== 'ADMIN' && user?.role !== 'SUBADMIN') {
-    return <Navigate to="/chat" replace />;
-  }
-  return children;
-}
-
 function AppContent() {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
   const [chatHistory, setChatHistory] = useState([]);
   const [historyLimit, setHistoryLimit] = useState(10);
@@ -92,7 +67,7 @@ function AppContent() {
   }, [location]);
 
   const fetchChatHistory = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || loading) return;
     try {
       const res = await axios.get(`${API_BASE_URL}/chat/`);
       setChatHistory(res.data);
@@ -140,15 +115,39 @@ function AppContent() {
     }
   };
 
-  // If on login page, don't show main sidebar layout
-  if (location.pathname === '/login') {
+  // 1. Loading State Screen
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        width: '100vw',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#0f172a',
+        color: '#94a3b8',
+        fontSize: '1rem',
+        fontWeight: 500
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <RefreshCw className="chatgpt-loading-spinner" style={{ width: '24px', height: '24px', color: '#10b981' }} />
+          <span>Đang xác thực hệ thống...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated State: Render LoginPage for /login or redirect to /login
+  if (!isAuthenticated) {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
 
+  // 3. Authenticated State: Main Layout with Sidebar
   const isAdminOrSubadmin = user?.role === 'ADMIN' || user?.role === 'SUBADMIN';
 
   return (
@@ -523,14 +522,18 @@ function AppContent() {
         {/* Dynamic Route views */}
         <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
           <Routes>
-            <Route path="/" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-            <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-            <Route path="/admin" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
-            <Route path="/admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
-            <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
-            <Route path="/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
-            <Route path="/documents/:id" element={<AdminRoute><DocumentDetailPage /></AdminRoute>} />
+            <Route path="/" element={<ChatPage />} />
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            {isAdminOrSubadmin && (
+              <>
+                <Route path="/admin" element={<AdminDocumentsPage />} />
+                <Route path="/admin/documents" element={<AdminDocumentsPage />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/documents" element={<AdminDocumentsPage />} />
+                <Route path="/documents/:id" element={<DocumentDetailPage />} />
+              </>
+            )}
             <Route path="*" element={<Navigate to="/chat" replace />} />
           </Routes>
         </div>
