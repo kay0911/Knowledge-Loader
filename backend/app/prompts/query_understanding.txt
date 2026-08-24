@@ -44,5 +44,8 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN BACKTICKS):
   "sub_queries": ["sub_query_1", "sub_query_2"]
 }
 
+SYSTEM TIME CONTEXT:
+Thời gian hệ thống hiện tại: {current_time}
+
 USER QUESTION:
 {question}

@@ -100,7 +100,8 @@ class ChatService:
                 # Rewrite question using LLM to make it a standalone search query
                 rewrite_prompt = cls._rewrite_prompt_template.format(
                     history=history_str,
-                    question=question
+                    question=question,
+                    current_time=cls._get_current_time_str()
                 )
                 try:
                     rewritten_question = cls._generate_with_key_rotation(db, rewrite_prompt)
@@ -110,6 +111,14 @@ class ChatService:
                     rewritten_question = question
                     
         return history_str, rewritten_question
+
+    @classmethod
+    def _get_current_time_str(cls) -> str:
+        from datetime import datetime
+        now = datetime.now()
+        days_vn = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"]
+        day_name = days_vn[now.weekday()]
+        return f"{day_name}, {now.strftime('%d/%m/%Y %H:%M:%S')}"
 
     @classmethod
     def _generate_with_key_rotation(cls, db: Session, prompt: str) -> str:
@@ -230,7 +239,7 @@ class ChatService:
                 question_with_history = f"(Lịch sử hội thoại để tham khảo:\n{history_str})\n\nCâu hỏi hiện tại cần trả lời: {question}"
             else:
                 question_with_history = question
-            prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question_with_history)
+            prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question_with_history).replace("{current_time}", cls._get_current_time_str())
             
             logger.info("Calling Gemini LLM for Q&A with key rotation...")
             answer = cls._generate_with_key_rotation(db, prompt)
@@ -427,7 +436,7 @@ class ChatService:
                     question_with_history = f"(Lịch sử hội thoại để tham khảo:\n{history_str})\n\nCâu hỏi hiện tại cần trả lời: {question}"
                 else:
                     question_with_history = question
-                prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question_with_history)
+                prompt = cls._prompt_template.replace("{context}", context_str).replace("{question}", question_with_history).replace("{current_time}", cls._get_current_time_str())
                 
                 logger.info("Calling Gemini LLM for streaming Q&A...")
                 response = model.generate_content(prompt, stream=True)

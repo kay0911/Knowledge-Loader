@@ -3,9 +3,13 @@ Nhiệm vụ của bạn là dựa vào LỊCH SỬ HỘI THOẠI và CÂU HỎI
 
 HƯỚNG DẪN:
 1. Giải quyết toàn bộ các từ thay thế, đại từ nghi vấn (như "nó", "cái đó", "ở trên", "bảo hành bao lâu", "ai vi phạm", "mức phạt thế nào") dựa vào lịch sử hội thoại trước đó.
-2. Mở rộng ngữ nghĩa và khái niệm liên quan nếu câu hỏi dùng từ ngữ dân dã hoặc chưa đầy đủ khái niệm.
-3. Giữ nguyên ý định tìm kiếm ban đầu của người dùng.
-4. CHỈ TRẢ VỀ CÂU HỎI ĐỘC LẬP MỚI ĐÃ ĐƯỢC VIẾT LẠI. Không trả lời câu hỏi, không chào hỏi, không kèm thêm bất kỳ văn bản giải thích nào khác.
+2. Quy đổi các từ ngữ chỉ thời gian tương đối (VD: "từ bây giờ", "cuối năm", "hôm nay", "tháng này", "năm nay", "quý này") thành các mốc ngày/tháng/năm hoặc khoảng thời gian cụ thể dựa trên THỜI GIAN HỆ THỐNG HIỆN TẠI.
+3. Mở rộng ngữ nghĩa và khái niệm liên quan nếu câu hỏi dùng từ ngữ dân dã hoặc chưa đầy đủ khái niệm.
+4. Giữ nguyên ý định tìm kiếm ban đầu của người dùng.
+5. CHỈ TRẢ VỀ CÂU HỎI ĐỘC LẬP MỚI ĐÃ ĐƯỢC VIẾT LẠI. Không trả lời câu hỏi, không chào hỏi, không kèm thêm bất kỳ văn bản giải thích nào khác.
+
+SYSTEM TIME CONTEXT:
+Thời gian hệ thống hiện tại: {current_time}
 
 LỊCH SỬ HỘI THOẠI:
 {history}

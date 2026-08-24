@@ -75,7 +75,13 @@ class QueryUnderstandingService:
         if not template:
             return cls._fallback_analysis(question)
 
-        prompt = template.replace("{question}", question)
+        from datetime import datetime
+        now = datetime.now()
+        days_vn = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"]
+        day_name = days_vn[now.weekday()]
+        current_time_str = f"{day_name}, {now.strftime('%d/%m/%Y %H:%M:%S')}"
+
+        prompt = template.replace("{current_time}", current_time_str).replace("{question}", question)
 
         try:
             logger.info("Executing LLM Query Understanding Pass...")
