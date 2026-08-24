@@ -89,6 +89,25 @@ class QueryUnderstandingService:
                 json_str = re.sub(r"\n?```$", "", json_str)
 
             data = json.loads(json_str)
+
+            # Safety Guardrail: Post-check for ambiguous questions missing entity context
+            q_clean = question.strip().lower()
+            generic_patterns = [
+                r"người\s+(?:phụ\s+trách|thực\s+hiện)",
+                r"ai\s+(?:làm|phụ\s+trách|thực\s+hiện)",
+                r"thời\s+gian\s+(?:thực\s+hiện|làm)",
+                r"chi\s+phí\s+(?:triển\s+khai|dự\s+toán)",
+                r"tiến\s+độ\s+(?:dự\s+án|báo\s+cáo)",
+                r"trạng\s+thái\s+(?:dự\s+án|công\s+việc)"
+            ]
+            has_generic_term = any(re.search(pat, q_clean) for pat in generic_patterns)
+            has_specific_entity = bool(re.search(r"(?:p\d+|vv|tc|fsd|wo|po|pr|md|vgreen|part\s*360|datalake|sap|dms)", q_clean))
+
+            if has_generic_term and not has_specific_entity:
+                data["intent"] = "AMBIGUOUS_QUERY"
+                data["direct_reply"] = "Câu hỏi của bạn hiện khá chung chung (chưa rõ tên dự án hay tài liệu cụ thể). Vui lòng cung cấp thêm thông tin chi tiết (ví dụ: tên dự án như P1, P2, MIS VGreen..., hoặc mã tài liệu) để hệ thống hỗ trợ bạn chính xác nhất."
+                data["sub_queries"] = []
+
             logger.info(f"LLM Query Understanding Result -> Intent: {data.get('intent')}, Injection: {data.get('is_prompt_injection')}, Sub-queries: {data.get('sub_queries')}")
             return data
         except Exception as e:
