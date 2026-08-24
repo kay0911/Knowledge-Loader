@@ -26,7 +26,8 @@ class CacheService:
             ).order_by(ChatLog.created_at.desc()).limit(100).all()
 
             for log in cached_entry:
-                if log.question and log.question.strip().lower() == q_clean:
+                effective_q = (log.rewritten_question or log.question or "").strip().lower()
+                if effective_q == q_clean:
                     logger.info(f"Semantic Cache HIT (within 24h TTL) for query: '{question}'")
                     return log.answer, log.citations or []
         except Exception as e:

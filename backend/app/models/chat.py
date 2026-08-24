@@ -11,6 +11,7 @@ class ChatLog(Base):
     user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     session_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     question = Column(Text, nullable=False)
+    rewritten_question = Column(Text, nullable=True)
     answer = Column(Text, nullable=True)
     retrieved_chunk_ids = Column(JSON, nullable=True) # List of UUID string values of chunks
     graph_context = Column(JSON, nullable=True) # Dictionary/list containing Neo4j subgraph info

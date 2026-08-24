@@ -151,8 +151,13 @@ class ChatService:
         cls._configure()
         start_time = time.time()
 
-        # 1. Fast Guardrail: Semantic Cache Check
-        cached_result = CacheService.get_semantic_cache(db, question)
+        # 1. History Mode Resolution & Query Rewriting
+        history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
+        effective_question = query_for_retrieval if (history_mode and query_for_retrieval) else question
+        rewritten_val = query_for_retrieval if (history_mode and query_for_retrieval != question) else None
+
+        # 2. Fast Guardrail: Semantic Cache Check on effective_question
+        cached_result = CacheService.get_semantic_cache(db, effective_question)
         if cached_result:
             cached_ans, cached_cits = cached_result
             resolved_session_id = session_id or str(uuid_mod.uuid4())
@@ -160,6 +165,7 @@ class ChatService:
                 user_id=user_id,
                 session_id=resolved_session_id,
                 question=question,
+                rewritten_question=rewritten_val,
                 answer=cached_ans,
                 retrieved_chunk_ids=[],
                 graph_context=[],
@@ -171,12 +177,12 @@ class ChatService:
             db.refresh(chat_log)
             return chat_log, cached_cits
 
-        # 2. LLM Semantic Query Understanding Pass
-        analysis = QueryUnderstandingService.analyze_query(db, question)
+        # 3. LLM Semantic Query Understanding Pass on effective_question
+        analysis = QueryUnderstandingService.analyze_query(db, effective_question)
         intent = analysis.get("intent", "DOMAIN_QUERY")
         is_injection = analysis.get("is_prompt_injection", False)
         direct_reply = analysis.get("direct_reply")
-        sub_queries = analysis.get("sub_queries") or [question]
+        sub_queries = analysis.get("sub_queries") or [effective_question]
 
         if is_injection or intent != "DOMAIN_QUERY":
             reply = direct_reply or "Xin chào! Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp."
@@ -185,6 +191,7 @@ class ChatService:
                 user_id=user_id,
                 session_id=resolved_session_id,
                 question=question,
+                rewritten_question=rewritten_val,
                 answer=reply,
                 retrieved_chunk_ids=[],
                 graph_context=[],
@@ -195,9 +202,6 @@ class ChatService:
             db.commit()
             db.refresh(chat_log)
             return chat_log, []
-        
-        # 3. Prepare history and query rewrite
-        history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
         
         # 4. Multi-query Parallel Retrieval Engine
         chunks = []
@@ -276,6 +280,7 @@ class ChatService:
             user_id=user_id,
             session_id=resolved_session_id,
             question=question,
+            rewritten_question=rewritten_val,
             answer=answer,
             retrieved_chunk_ids=[str(c.id) for c in chunks],
             graph_context=graph_relationships,
@@ -303,8 +308,13 @@ class ChatService:
         cls._configure()
         start_time = time.time()
         
-        # 1. Fast Guardrail: Semantic Cache Check
-        cached_result = CacheService.get_semantic_cache(db, question)
+        # 1. History Mode Resolution & Query Rewriting
+        history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
+        effective_question = query_for_retrieval if (history_mode and query_for_retrieval) else question
+        rewritten_val = query_for_retrieval if (history_mode and query_for_retrieval != question) else None
+
+        # 2. Fast Guardrail: Semantic Cache Check on effective_question
+        cached_result = CacheService.get_semantic_cache(db, effective_question)
         if cached_result:
             cached_ans, cached_cits = cached_result
             resolved_session_id = session_id or str(uuid_mod.uuid4())
@@ -312,6 +322,7 @@ class ChatService:
                 user_id=user_id,
                 session_id=resolved_session_id,
                 question=question,
+                rewritten_question=rewritten_val,
                 answer=cached_ans,
                 retrieved_chunk_ids=[],
                 graph_context=[],
@@ -325,16 +336,25 @@ class ChatService:
             except Exception:
                 db.rollback()
 
+            metadata_payload = {
+                'type': 'metadata',
+                'chat_id': str(chat_log.id),
+                'session_id': resolved_session_id,
+                'citations': cached_cits
+            }
+            if rewritten_val:
+                metadata_payload['rewritten_question'] = rewritten_val
+
             yield f"data: {json.dumps({'type': 'content', 'content': cached_ans}, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': cached_cits}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps(metadata_payload, ensure_ascii=False)}\n\n"
             return
 
-        # 2. LLM Semantic Query Understanding Pass
-        analysis = QueryUnderstandingService.analyze_query(db, question)
+        # 3. LLM Semantic Query Understanding Pass on effective_question
+        analysis = QueryUnderstandingService.analyze_query(db, effective_question)
         intent = analysis.get("intent", "DOMAIN_QUERY")
         is_injection = analysis.get("is_prompt_injection", False)
         direct_reply = analysis.get("direct_reply")
-        sub_queries = analysis.get("sub_queries") or [question]
+        sub_queries = analysis.get("sub_queries") or [effective_question]
 
         if is_injection or intent != "DOMAIN_QUERY":
             reply = direct_reply or "Xin chào! Tôi là trợ lý ảo hỗ trợ tra cứu tri thức doanh nghiệp."
@@ -343,6 +363,7 @@ class ChatService:
                 user_id=user_id,
                 session_id=resolved_session_id,
                 question=question,
+                rewritten_question=rewritten_val,
                 answer=reply,
                 retrieved_chunk_ids=[],
                 graph_context=[],
@@ -356,12 +377,18 @@ class ChatService:
             except Exception:
                 db.rollback()
 
-            yield f"data: {json.dumps({'type': 'content', 'content': reply}, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({'type': 'metadata', 'chat_id': str(chat_log.id), 'session_id': resolved_session_id, 'citations': []}, ensure_ascii=False)}\n\n"
-            return
+            metadata_payload = {
+                'type': 'metadata',
+                'chat_id': str(chat_log.id),
+                'session_id': resolved_session_id,
+                'citations': []
+            }
+            if rewritten_val:
+                metadata_payload['rewritten_question'] = rewritten_val
 
-        # 1. Prepare history and query rewrite
-        history_str, query_for_retrieval = cls._prepare_history_and_query(db, question, session_id, history_mode)
+            yield f"data: {json.dumps({'type': 'content', 'content': reply}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps(metadata_payload, ensure_ascii=False)}\n\n"
+            return
         
         # 2. Query Decomposition & Parallel Retrieval Engine
         sub_queries = QueryDecomposerService.decompose_query(query_for_retrieval)
@@ -441,6 +468,7 @@ class ChatService:
             user_id=user_id,
             session_id=resolved_session_id,
             question=question,
+            rewritten_question=rewritten_val,
             answer=answer,
             retrieved_chunk_ids=[str(c.id) for c in chunks],
             graph_context=graph_relationships,
