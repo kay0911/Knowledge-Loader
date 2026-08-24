@@ -120,6 +120,16 @@ class QueryUnderstandingService:
                 "sub_queries": []
             }
 
+        # Ambiguous query fallback (asking generic questions like "người thực hiện dự án là ai" without specific code/name)
+        generic_terms = ["người thực hiện", "thời gian thực hiện", "chi phí triển khai", "tiến độ báo cáo", "ai làm dự án"]
+        if any(term in q_lower for term in generic_terms) and not re.search(r"(?:p\d+|vv|tc|fsd|wo|po|pr|md|vgreen|dự án\s+[a-z0-9]+)", q_lower):
+            return {
+                "intent": "AMBIGUOUS_QUERY",
+                "is_prompt_injection": False,
+                "direct_reply": "Câu hỏi của bạn hiện khá chung chung (chưa rõ tên dự án hay tài liệu cụ thể). Vui lòng cung cấp thêm thông tin chi tiết (ví dụ: tên dự án như P1, P2, MIS VGreen..., hoặc mã tài liệu) để hệ thống hỗ trợ bạn chính xác nhất.",
+                "sub_queries": []
+            }
+
         return {
             "intent": "DOMAIN_QUERY",
             "is_prompt_injection": False,
