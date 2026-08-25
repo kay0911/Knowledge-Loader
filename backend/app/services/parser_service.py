@@ -474,17 +474,37 @@ class ParserService:
 
     @staticmethod
     def _is_section_title(row: tuple) -> bool:
+        """
+        Strict Section Title matcher.
+        Only returns True if row is a genuine section title / banner.
+        Does NOT match bottom notes, comments, or footnotes.
+        """
         if not row:
             return False
         non_empty = [(i, str(c).strip()) for i, c in enumerate(row) if c is not None and str(c).strip()]
         if not non_empty or len(non_empty) > 3:
             return False
+        
         first_idx, first_val = non_empty[0]
-        if re.match(r'^\d+[\.\:]\s*', first_val) or first_val.isupper() or len(first_val) > 25:
-            if len(non_empty) == 1:
-                return True
-            if len(non_empty) <= 3 and len(first_val) > 20:
-                return True
+        lower_val = first_val.lower()
+
+        # Bottom notes / comments start with explicit keywords or lowercase notes
+        if any(lower_val.startswith(k) for k in ["ghi chú", "chú thích", "note", "chữ xanh", "*", "seminar", "mai show", "hướng dẫn"]):
+            return False
+
+        # Check for explicit title signatures:
+        # 1. Numbered section title: "1. PHÂN BỔ...", "2. WORKLOAD...", "Section 1", "Table 2", "Checklist..."
+        if re.match(r'^(?:\d+[\.\:]|Phần|Bảng|Section|Table|Checklist)\s*', first_val, re.IGNORECASE):
+            return True
+            
+        # 2. ALL CAPS banner text like "CHECKLIST TỪNG DỰ ÁN – NGUỒN GỐC"
+        if first_val.isupper() and len(first_val) >= 5:
+            return True
+            
+        # 3. Short concise title header (< 60 chars) with title case (no period, no equation)
+        if len(first_val) < 60 and not first_val.endswith('.') and not re.search(r'\=\s*\d+', first_val):
+            return True
+
         return False
 
     @staticmethod
@@ -953,7 +973,18 @@ class ParserService:
                             best_header_idx = i
 
                     header_row = tbl_rows[best_header_idx]
-                    data_rows = tbl_rows[best_header_idx + 1:]
+                    raw_data_rows = tbl_rows[best_header_idx + 1:]
+                    
+                    # Enforce 200 row cap per table segment to prevent chunk explosion on large data dumps
+                    MAX_DATA_ROWS_PER_TABLE = 200
+                    total_raw_count = len(raw_data_rows)
+                    if total_raw_count > MAX_DATA_ROWS_PER_TABLE:
+                        logger.warning(f"Table '{tbl_title or tbl_idx}' in sheet '{sheet_name}' has {total_raw_count} rows. Capping at {MAX_DATA_ROWS_PER_TABLE} rows.")
+                        data_rows = raw_data_rows[:MAX_DATA_ROWS_PER_TABLE]
+                        is_truncated = True
+                    else:
+                        data_rows = raw_data_rows
+                        is_truncated = False
 
                     # Active column indices for this segment
                     max_c = max(len(r) for r in tbl_rows)
@@ -1036,6 +1067,18 @@ class ParserService:
                             sheet_name=sheet_name,
                             table_id=f"sheet_{sheet_name}_tbl_{tbl_idx}",
                             requires_llm_summary=False,
+                            source_order=source_order
+                        ))
+
+                    if is_truncated:
+                        source_order += 1
+                        sheet_blocks.append(NormalizedBlock(
+                            block_id=str(uuid.uuid4()),
+                            source_type="xlsx",
+                            block_type="paragraph",
+                            content=f"*(Lưu ý: Bảng '{tbl_title or tbl_idx}' trong sheet '{sheet_name}' có tổng cộng {total_raw_count} dòng. Hệ thống đã giới hạn trích xuất {MAX_DATA_ROWS_PER_TABLE} dòng đầu tiên để tối ưu tốc độ và hiệu năng tra cứu RAG.)*",
+                            heading_path=[f"Sheet: {sheet_name}", tbl_title or f"Bảng {tbl_idx}"],
+                            sheet_name=sheet_name,
                             source_order=source_order
                         ))
 
