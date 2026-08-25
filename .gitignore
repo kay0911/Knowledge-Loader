@@ -83,3 +83,7 @@ scratch/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Documentation (Local only)
+docs/
+
