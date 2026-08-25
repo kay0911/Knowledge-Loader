@@ -311,15 +311,15 @@ export default function AdminDocumentsPage() {
           </div>
         ) : (
           <div className="table-container" style={{ width: '100%', overflowX: 'auto', paddingBottom: '8px' }}>
-            <table style={{ width: '100%', minWidth: '980px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+            <table style={{ width: '100%', minWidth: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--table-border)', color: 'var(--text-light)' }}>
-                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '240px' }}>Tên tài liệu</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '90px' }}>Định dạng</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '90px' }}>Routing</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '130px' }}>Trạng thái</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600, minWidth: '90px' }}>Số Chunks</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'right', minWidth: '340px' }}>Hành động</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600, minWidth: '200px' }}>Tên tài liệu</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600, minWidth: '80px' }}>Định dạng</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600, minWidth: '80px' }}>Routing</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600, minWidth: '120px' }}>Trạng thái</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600, minWidth: '80px' }}>Số Chunks</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600, textAlign: 'right', minWidth: '240px' }}>Hành động</th>
                 </tr>
               </thead>
               <tbody>
@@ -332,7 +332,7 @@ export default function AdminDocumentsPage() {
                   >
                     
                     {/* File Name & UUID */}
-                    <td style={{ padding: '16px', maxWidth: '300px' }}>
+                    <td style={{ padding: '8px 12px', maxWidth: '280px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span 
                           style={{ 
@@ -341,26 +341,26 @@ export default function AdminDocumentsPage() {
                             cursor: 'pointer',
                             wordBreak: 'break-word',
                             whiteSpace: 'normal',
-                            lineHeight: '1.4'
+                            lineHeight: '1.3'
                           }} 
                           onClick={() => navigate(`/documents/${doc.id}`)}
                           title={doc.original_file_name}
                         >
                           {doc.original_file_name}
                         </span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '4px', wordBreak: 'break-all' }}>{doc.id}</span>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-light)', marginTop: '2px', wordBreak: 'break-all' }}>{doc.id}</span>
                       </div>
                     </td>
 
                     {/* Format type */}
-                    <td style={{ padding: '16px' }}>
+                    <td style={{ padding: '8px 12px' }}>
                       <span style={{ 
                         textTransform: 'uppercase', 
-                        fontSize: '0.7rem', 
+                        fontSize: '0.68rem', 
                         fontWeight: 700, 
                         color: doc.file_type === 'pdf' ? '#f43f5e' : (doc.file_type === 'docx' || doc.file_type === 'doc') ? '#3b82f6' : (doc.file_type === 'pptx' || doc.file_type === 'ppt') ? '#f59e0b' : (doc.file_type === 'md' || doc.file_type === 'markdown') ? '#a855f7' : '#10b981',
                         backgroundColor: doc.file_type === 'pdf' ? 'rgba(244, 63, 94, 0.1)' : (doc.file_type === 'docx' || doc.file_type === 'doc') ? 'rgba(59, 130, 246, 0.1)' : (doc.file_type === 'pptx' || doc.file_type === 'ppt') ? 'rgba(245, 158, 11, 0.1)' : (doc.file_type === 'md' || doc.file_type === 'markdown') ? 'rgba(168, 85, 247, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                        padding: '2px 6px',
+                        padding: '2px 5px',
                         borderRadius: '4px'
                       }}>
                         {doc.file_type}
@@ -368,10 +368,10 @@ export default function AdminDocumentsPage() {
                     </td>
 
                     {/* Routing State result */}
-                    <td style={{ padding: '16px' }}>
+                    <td style={{ padding: '8px 12px' }}>
                       <span style={{ 
                         fontWeight: 600, 
-                        fontSize: '0.75rem',
+                        fontSize: '0.72rem',
                         color: doc.routing_result === 'NEW' ? '#a855f7' : doc.routing_result === 'UPDATED' ? '#f59e0b' : 'var(--text-light)' 
                       }}>
                         {doc.routing_result || '-'}
@@ -379,7 +379,7 @@ export default function AdminDocumentsPage() {
                     </td>
 
                     {/* Status badge */}
-                    <td style={{ padding: '16px' }}>
+                    <td style={{ padding: '8px 12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span className={`badge ${getStatusBadgeClass(doc.status)}`}>
                           {getStatusIcon(doc.status)}
@@ -408,12 +408,12 @@ export default function AdminDocumentsPage() {
                     </td>
 
                     {/* Chunk counts */}
-                    <td style={{ padding: '16px', fontWeight: 600, color: 'var(--text-color)' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-color)' }}>
                       {doc.status === 'READY' ? doc.chunks_count : '-'}
                     </td>
 
                     {/* Action buttons */}
-                    <td style={{ padding: '16px', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '340px' }}>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '240px' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
                         <button 
                           onClick={(e) => handleToggleEnablement(doc.id, e)}
