@@ -1012,6 +1012,10 @@ class ParserService:
                     if not active_col_indices:
                         active_col_indices = list(range(min(max_c, 5)))
 
+                    if is_large_sheet and len(active_col_indices) > 12:
+                        # Cap active columns to top 12 columns max for large sheet representative sample to prevent block explosion
+                        active_col_indices = active_col_indices[:12]
+
                     # Detect if segment is a 2-column Key-Value / Summary List vs a True Grid Table
                     is_key_value = len(active_col_indices) <= 2 and (best_score <= 2 or len(active_col_indices) == 1)
 
@@ -1072,11 +1076,13 @@ class ParserService:
                     data_rows_count = 0
 
                     for r in data_rows:
-                        row_vals = [
-                            ParserService._format_excel_cell_value(r[i])
-                            if i < len(r) and r[i] is not None else "" 
-                            for i in active_col_indices
-                        ]
+                        row_vals = []
+                        for i in active_col_indices:
+                            v_str = ParserService._format_excel_cell_value(r[i]) if i < len(r) and r[i] is not None else ""
+                            if is_large_sheet and len(v_str) > 70:
+                                v_str = v_str[:67] + "..."
+                            row_vals.append(v_str)
+
                         if not any(row_vals):
                             continue
 
@@ -1087,8 +1093,8 @@ class ParserService:
                         batch_rows.append(row_line)
                         current_char_count += row_len
 
-                        if is_large_sheet and (current_char_count >= 800 or len(batch_rows) >= 3):
-                            # LARGE SHEET GUARDRAIL: Stop accumulating rows once character budget reaches ~800 chars so chunk is EXACTLY 1 chunk (< 1200 chars total)
+                        if is_large_sheet and (current_char_count >= 650 or len(batch_rows) >= 2):
+                            # LARGE SHEET GUARDRAIL: Stop accumulating rows once character budget reaches ~650 chars so total block + note never exceeds 1200 chars
                             break
 
                         if not is_large_sheet and (current_char_count >= 1150 or len(batch_rows) >= 20):

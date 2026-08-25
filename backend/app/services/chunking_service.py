@@ -290,6 +290,9 @@ class ChunkingService:
         if lines[0].startswith("|") and len(lines) > 1 and "|-" in lines[1].replace(" ", ""):
             header_lines = [lines[0], lines[1]]
             data_lines = lines[2:]
+        elif lines[0].startswith("#") and len(lines) > 2 and lines[1].startswith("|") and "|-" in lines[2].replace(" ", ""):
+            header_lines = [lines[0], lines[1], lines[2]]
+            data_lines = lines[3:]
         else:
             data_lines = lines
 
@@ -328,7 +331,8 @@ class ChunkingService:
 
         for line in data_lines:
             line_len = len(line) + 1
-            if current_len + line_len <= cls.TARGET_CHARS:
+            is_notice_line = line.startswith("*(Lưu ý:") or line.startswith("*(Notice:")
+            if is_notice_line or current_len + line_len <= cls.TARGET_CHARS:
                 current_records.append(line)
                 current_len += line_len
             elif current_len + line_len <= cls.MAX_CHARS:
