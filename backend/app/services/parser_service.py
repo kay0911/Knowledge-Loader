@@ -717,7 +717,34 @@ class ParserService:
 
                     # Scan top 10 rows for date/week columns & core column keywords
                     date_col_count = 0
-                    for r_idx, r_sample in enumerate(rows_list[:10]):
+                    curr_base_date = None
+
+                    for idx_c in range(4, max_cols_count):
+                        # Check top 10 rows for datetime base objects
+                        for r_sample in rows_list[:10]:
+                            if idx_c < len(r_sample) and isinstance(r_sample[idx_c], (datetime.datetime, datetime.date)):
+                                curr_base_date = r_sample[idx_c]
+                                break
+
+                        # Check if any row in top 10 has day number 1..31
+                        day_num_str = None
+                        for r_sample in rows_list[:10]:
+                            if idx_c < len(r_sample) and r_sample[idx_c] is not None:
+                                v_s = str(r_sample[idx_c]).strip()
+                                if re.match(r'^\d{1,2}$', v_s) and 1 <= int(v_s) <= 31:
+                                    day_num_str = v_s
+                                    break
+
+                        if curr_base_date and day_num_str:
+                            try:
+                                d_num = int(day_num_str)
+                                resolved_date = datetime.date(curr_base_date.year, curr_base_date.month, d_num).strftime("%d/%m/%Y")
+                                timeline_col_map[idx_c] = {"col_name": resolved_date, "month": ""}
+                                date_col_count += 1
+                            except Exception:
+                                pass
+
+                    for r_sample in rows_list[:10]:
                         if not r_sample:
                             continue
                         for idx_c, val_c in enumerate(r_sample):
@@ -738,9 +765,6 @@ class ParserService:
                             elif re.search(r'\d{1,2}-[Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec]{3}-\d{2,4}', val_str, re.IGNORECASE) or re.search(r'\d{4}-\d{2}-\d{2}', val_str) or re.search(r'\d{1,2}/\d{1,2}/\d{2,4}', val_str) or re.match(r'W\d{1,2}', val_str, re.IGNORECASE):
                                 is_date_col = True
                                 date_formatted = val_str.split(" ")[0]
-                            elif idx_c >= 4 and re.match(r'^\d{1,2}$', val_str) and 1 <= int(val_str) <= 31:
-                                is_date_col = True
-                                date_formatted = f"Ngày {val_str}"
 
                             if is_date_col and idx_c >= 4:
                                 date_col_count += 1
@@ -760,9 +784,8 @@ class ParserService:
                 if is_timeline_sheet:
                     logger.info(f"Timeline Action Plan sheet detected in '{sheet_name}'. Activating Timeline Aggregation Engine.")
                     
-                    # Dynamically map column positions from header row
+                    # Dynamically map column positions by scanning ALL top 10 rows
                     col_map_idx = {}
-                    header_row_tuple = rows_list[best_header_row_idx]
                     
                     # Find first populated column index in sample data rows
                     first_col_idx = 0
@@ -774,27 +797,30 @@ class ParserService:
                             first_col_idx = min(non_empty_indices)
                             break
 
-                    for c_idx, c_val in enumerate(header_row_tuple):
-                        if c_val is None:
+                    for r_sample in rows_list[:10]:
+                        if not r_sample:
                             continue
-                        c_lower = str(c_val).strip().lower()
-                        if any(k in c_lower for k in ["stt", "no.", "no"]) and c_idx < 5 and "stt" not in col_map_idx:
-                            col_map_idx["stt"] = c_idx
-                        elif any(k in c_lower for k in ["hạng mục", "công việc", "task title", "task", "phase", "description", "title"]):
-                            if "task_name" not in col_map_idx:
-                                col_map_idx["task_name"] = c_idx
-                        elif any(k in c_lower for k in ["pic", "owner", "task owner", "người làm", "phụ trách"]):
-                            if "pic" not in col_map_idx:
-                                col_map_idx["pic"] = c_idx
-                        elif any(k in c_lower for k in ["ưu tiên", "priority"]):
-                            if "priority" not in col_map_idx:
-                                col_map_idx["priority"] = c_idx
-                        elif any(k in c_lower for k in ["trạng thái", "status"]):
-                            if "status" not in col_map_idx:
-                                col_map_idx["status"] = c_idx
-                        elif any(k in c_lower for k in ["tiến độ", "pct", "%", "complete"]):
-                            if "progress" not in col_map_idx:
-                                col_map_idx["progress"] = c_idx
+                        for c_idx, c_val in enumerate(r_sample):
+                            if c_val is None:
+                                continue
+                            c_lower = str(c_val).strip().lower()
+                            if any(k in c_lower for k in ["stt", "no.", "no"]) and c_idx < 5 and "stt" not in col_map_idx:
+                                col_map_idx["stt"] = c_idx
+                            elif c_idx >= 2 and any(k in c_lower for k in ["hạng mục", "công việc", "task title", "task", "phase", "description", "title", "project"]):
+                                if "task_name" not in col_map_idx and c_idx != col_map_idx.get("stt"):
+                                    col_map_idx["task_name"] = c_idx
+                            elif any(k in c_lower for k in ["person in charge", "pic", "owner", "người làm", "phụ trách"]):
+                                if "pic" not in col_map_idx:
+                                    col_map_idx["pic"] = c_idx
+                            elif any(k in c_lower for k in ["team in charge", "team"]):
+                                if "team" not in col_map_idx:
+                                    col_map_idx["team"] = c_idx
+                            elif any(k in c_lower for k in ["ưu tiên", "priority"]):
+                                if "priority" not in col_map_idx:
+                                    col_map_idx["priority"] = c_idx
+                            elif any(k in c_lower for k in ["trạng thái", "status", "tiến độ", "pct", "%", "complete"]):
+                                if "status" not in col_map_idx:
+                                    col_map_idx["status"] = c_idx
 
                     # Smart fallback for STT & Task Name if not explicitly matched by header keywords
                     if "stt" not in col_map_idx:
@@ -817,6 +843,7 @@ class ParserService:
                     idx_stt = col_map_idx["stt"]
                     idx_task = col_map_idx["task_name"]
                     idx_pic = col_map_idx.get("pic", None)
+                    idx_team = col_map_idx.get("team", None)
                     idx_prio = col_map_idx.get("priority", None)
                     idx_stat = col_map_idx.get("status", None)
                     idx_prog = col_map_idx.get("progress", None)
@@ -856,7 +883,14 @@ class ParserService:
                         task_name = str(row[idx_task]).strip() if idx_task is not None and idx_task < len(row) and row[idx_task] is not None else ""
                         if not task_name and idx_task is not None and (idx_task + 1) < len(row) and row[idx_task + 1] is not None:
                             task_name = str(row[idx_task + 1]).strip()
-                        pic = str(row[idx_pic]).strip() if idx_pic is not None and idx_pic < len(row) and row[idx_pic] is not None else "Unassigned"
+                        pic_val = str(row[idx_pic]).strip() if idx_pic is not None and idx_pic < len(row) and row[idx_pic] is not None else ""
+                        team_val = str(row[idx_team]).strip() if idx_team is not None and idx_team < len(row) and row[idx_team] is not None else ""
+                        
+                        if pic_val and team_val and pic_val != team_val:
+                            pic = f"{pic_val} ({team_val})"
+                        else:
+                            pic = pic_val or team_val or "Unassigned"
+
                         priority = str(row[idx_prio]).strip() if idx_prio is not None and idx_prio < len(row) and row[idx_prio] is not None else "Normal"
                         status = str(row[idx_stat]).strip() if idx_stat is not None and idx_stat < len(row) and row[idx_stat] is not None else "Pending"
                         progress = str(row[idx_prog]).strip() if idx_prog is not None and idx_prog < len(row) and row[idx_prog] is not None else ""
@@ -870,6 +904,13 @@ class ParserService:
                                 progress_str = f"{int(p_val * 100)}%" if p_val <= 1.0 else f"{progress}%"
                             except ValueError:
                                 progress_str = progress
+                        elif status and status.replace('.', '', 1).replace('%', '').strip().isdigit():
+                            try:
+                                p_val = float(status.replace('%', '').strip())
+                                progress_str = f"{int(p_val * 100)}%" if p_val <= 1.0 else f"{int(p_val)}%"
+                                status = "Completed" if p_val >= 1.0 or p_val == 100 else ("In Progress" if p_val > 0 else "Pending")
+                            except ValueError:
+                                progress_str = "0%"
                         else:
                             progress_str = "0%"
 
@@ -878,6 +919,7 @@ class ParserService:
                         cell_objects = ws_openpyxl_rows[row_i] if row_i < len(ws_openpyxl_rows) else []
 
                         # Check if current row is a Category/Header row (uniform fill across >75% timeline columns)
+                        ignored_bg_fills = ["NONE", "00000000", "FFFFFFFF", "00FFFFFF", "FFCCCCCC", "FFF2F2F2", "FFD0D0D0", "FFE0E0E0", "FFF9F9F9", "FFEEEEEE", "FFFAFAFA"]
                         row_t_fills = []
                         for c_k in timeline_col_map.keys():
                             if c_k < len(cell_objects):
@@ -892,7 +934,7 @@ class ParserService:
                         freq_fill, freq_cnt = Counter(row_t_fills).most_common(1)[0] if row_t_fills else ("NONE", 0)
                         is_section_header = (
                             (freq_cnt / len(row_t_fills) > 0.75) 
-                            and freq_fill not in ["NONE", "00000000", "FFFFFFFF", "00FFFFFF", "FFCCCCCC"]
+                            and freq_fill not in ignored_bg_fills
                             and any(freq_fill != col_default_fills.get(c_k) for c_k in timeline_col_map.keys())
                         ) if row_t_fills else False
 
@@ -910,7 +952,7 @@ class ParserService:
                                     sc = cell_obj.fill.start_color
                                     rgb = str(sc.rgb) if sc.type == "rgb" else (f"THEME_{sc.theme}" if sc.type == "theme" else str(sc.value))
                                     # Ignore standard empty background fills
-                                    if rgb not in ["NONE", "00000000", "FFFFFFFF", "FFCCCCCC", "00FFFFFF"]:
+                                    if rgb not in ignored_bg_fills:
                                         # Must be different from the column's default baseline fill!
                                         if rgb != col_default_fills.get(c_idx):
                                             is_active = True
@@ -921,11 +963,17 @@ class ParserService:
                         if active_cols:
                             start_date = active_cols[0][1]["col_name"]
                             end_date = active_cols[-1][1]["col_name"]
-                            start_month = active_cols[0][1]["month"]
-                            end_month = active_cols[-1][1]["month"]
+                            start_month = active_cols[0][1].get("month", "")
+                            end_month = active_cols[-1][1].get("month", "")
 
-                            month_range_str = f"({start_month})" if start_month == end_month else f"({start_month} – {end_month})" if (start_month or end_month) else ""
-                            timeline_summary = f"{start_date} – {end_date} {month_range_str}".strip() if start_date != end_date else f"{start_date} {month_range_str}".strip()
+                            if start_month and end_month:
+                                month_range_str = f" ({start_month})" if start_month == end_month else f" ({start_month} – {end_month})"
+                            elif start_month or end_month:
+                                month_range_str = f" ({start_month or end_month})"
+                            else:
+                                month_range_str = ""
+
+                            timeline_summary = f"{start_date} – {end_date}{month_range_str}".strip() if start_date != end_date else f"{start_date}{month_range_str}".strip()
                         else:
                             timeline_summary = "Chưa xếp lịch"
 
