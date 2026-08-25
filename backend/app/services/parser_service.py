@@ -950,6 +950,17 @@ class ParserService:
                         ))
                     continue
 
+                # Check if this sheet is a Large Data Dump Sheet (> 200 rows OR > 10,000 total characters)
+                total_sheet_rows = len(rows_list)
+                total_sheet_chars = sum(len(str(c)) for r in rows_list for c in r if c is not None)
+                is_large_sheet = total_sheet_rows > 200 or total_sheet_chars > 10000
+
+                if is_large_sheet:
+                    logger.warning(
+                        f"Sheet '{sheet_name}' in {os.path.basename(file_path)} exceeds 200 rows / 10K chars "
+                        f"({total_sheet_rows} rows, {total_sheet_chars} chars). Filtering to keep 1ST SINGLE CHUNK ONLY."
+                    )
+
                 # ==================================================
                 # MODE B: STANDARD MARKDOWN PIPE TABLE MODE (MULTI-TABLE SEGMENTED)
                 # ==================================================
@@ -973,18 +984,7 @@ class ParserService:
                             best_header_idx = i
 
                     header_row = tbl_rows[best_header_idx]
-                    raw_data_rows = tbl_rows[best_header_idx + 1:]
-                    
-                    # Enforce 200 row cap per table segment to prevent chunk explosion on large data dumps
-                    MAX_DATA_ROWS_PER_TABLE = 200
-                    total_raw_count = len(raw_data_rows)
-                    if total_raw_count > MAX_DATA_ROWS_PER_TABLE:
-                        logger.warning(f"Table '{tbl_title or tbl_idx}' in sheet '{sheet_name}' has {total_raw_count} rows. Capping at {MAX_DATA_ROWS_PER_TABLE} rows.")
-                        data_rows = raw_data_rows[:MAX_DATA_ROWS_PER_TABLE]
-                        is_truncated = True
-                    else:
-                        data_rows = raw_data_rows
-                        is_truncated = False
+                    data_rows = tbl_rows[best_header_idx + 1:]
 
                     # Active column indices for this segment
                     max_c = max(len(r) for r in tbl_rows)
@@ -1051,11 +1051,14 @@ class ParserService:
                             ))
                             batch_rows = [row_line]
                             current_char_count = len(header_md) + row_len
+                            if is_large_sheet:
+                                # LARGE SHEET GUARDRAIL: Keep 1st single chunk only and stop parsing this sheet!
+                                break
                         else:
                             batch_rows.append(row_line)
                             current_char_count += row_len
 
-                    if batch_rows:
+                    if batch_rows and (not is_large_sheet or not sheet_blocks):
                         source_order += 1
                         table_content = header_md + "".join(batch_rows)
                         sheet_blocks.append(NormalizedBlock(
@@ -1070,17 +1073,19 @@ class ParserService:
                             source_order=source_order
                         ))
 
-                    if is_truncated:
+                    if is_large_sheet:
                         source_order += 1
                         sheet_blocks.append(NormalizedBlock(
                             block_id=str(uuid.uuid4()),
                             source_type="xlsx",
                             block_type="paragraph",
-                            content=f"*(Lưu ý: Bảng '{tbl_title or tbl_idx}' trong sheet '{sheet_name}' có tổng cộng {total_raw_count} dòng. Hệ thống đã giới hạn trích xuất {MAX_DATA_ROWS_PER_TABLE} dòng đầu tiên để tối ưu tốc độ và hiệu năng tra cứu RAG.)*",
+                            content=f"*(Lưu ý: Sheet '{sheet_name}' có tổng cộng {total_sheet_rows} dòng ({total_sheet_chars} ký tự). Hệ thống đã áp dụng cơ chế bảo vệ Large Sheet: chỉ trích xuất 1 chunk đầu tiên đại diện cho tab này để tránh quá tải CSDL.)*",
                             heading_path=[f"Sheet: {sheet_name}", tbl_title or f"Bảng {tbl_idx}"],
                             sheet_name=sheet_name,
                             source_order=source_order
                         ))
+                        # Large sheet guardrail: Stop processing further tables in this sheet
+                        break
 
                 blocks.extend(sheet_blocks)
 
