@@ -180,14 +180,14 @@ function AppContent() {
           overflow: 'hidden'
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '12px', width: '260px', maxWidth: '260px', boxSizing: 'border-box', overflowX: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '10px', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
           
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '0 4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => navigate('/chat')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '0 2px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', overflow: 'hidden' }} onClick={() => navigate('/chat')}>
               <div style={{
-                width: '28px',
-                height: '28px',
+                width: '26px',
+                height: '26px',
                 borderRadius: '6px',
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 display: 'flex',
@@ -195,20 +195,22 @@ function AppContent() {
                 justifyContent: 'center',
                 fontWeight: 'bold',
                 color: '#fff',
-                fontSize: '0.85rem'
+                fontSize: '0.8rem',
+                flexShrink: 0
               }}>K</div>
-              <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-color)' }}>Knowledge Loader</span>
+              <span style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Knowledge Loader</span>
             </div>
             
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
               <button 
                 className="chatgpt-btn-icon" 
                 onClick={toggleTheme}
                 title={theme === 'dark' ? 'Chuyển sang Chế độ sáng' : 'Chuyển sang Chế độ tối'}
+                style={{ padding: '4px' }}
               >
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
-              <button className="chatgpt-btn-icon" onClick={() => setSidebarOpen(false)}>
+              <button className="chatgpt-btn-icon" onClick={() => setSidebarOpen(false)} style={{ padding: '4px' }}>
                 <ChevronLeft className="w-4 h-4" />
               </button>
             </div>

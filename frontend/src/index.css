@@ -290,8 +290,8 @@ body {
 }
 
 .chatgpt-sidebar.open {
-  width: 230px;
-  min-width: 230px;
+  width: 240px;
+  min-width: 240px;
 }
 
 .chatgpt-main {
