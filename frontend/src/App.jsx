@@ -21,7 +21,7 @@ function AppContent() {
   const { user, logout, isAuthenticated, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
   const [chatHistory, setChatHistory] = useState([]);
-  const [historyLimit, setHistoryLimit] = useState(10);
+  const [historyLimit, setHistoryLimit] = useState(30);
   const [activeLogId, setActiveLogId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -69,7 +69,7 @@ function AppContent() {
   const fetchChatHistory = async () => {
     if (!isAuthenticated || loading) return;
     try {
-      const res = await axios.get(`${API_BASE_URL}/chat/`);
+      const res = await axios.get(`${API_BASE_URL}/chat/?t=${Date.now()}`);
       setChatHistory(res.data);
     } catch (err) {
       console.error("Error fetching chat logs:", err);
