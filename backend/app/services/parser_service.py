@@ -818,9 +818,12 @@ class ParserService:
                             elif any(k in c_lower for k in ["ưu tiên", "priority"]):
                                 if "priority" not in col_map_idx:
                                     col_map_idx["priority"] = c_idx
-                            elif any(k in c_lower for k in ["trạng thái", "status", "tiến độ", "pct", "%", "complete"]):
+                            elif any(k in c_lower for k in ["trạng thái", "status"]):
                                 if "status" not in col_map_idx:
                                     col_map_idx["status"] = c_idx
+                            elif any(k in c_lower for k in ["tiến độ", "pct", "%", "complete", "hoàn thành"]):
+                                if "progress" not in col_map_idx:
+                                    col_map_idx["progress"] = c_idx
 
                     # Smart fallback for STT & Task Name if not explicitly matched by header keywords
                     if "stt" not in col_map_idx:
@@ -892,25 +895,51 @@ class ParserService:
                             pic = pic_val or team_val or "Unassigned"
 
                         priority = str(row[idx_prio]).strip() if idx_prio is not None and idx_prio < len(row) and row[idx_prio] is not None else "Normal"
-                        status = str(row[idx_stat]).strip() if idx_stat is not None and idx_stat < len(row) and row[idx_stat] is not None else "Pending"
-                        progress = str(row[idx_prog]).strip() if idx_prog is not None and idx_prog < len(row) and row[idx_prog] is not None else ""
+                        status_raw = str(row[idx_stat]).strip() if idx_stat is not None and idx_stat < len(row) and row[idx_stat] is not None else ""
+                        progress_raw = str(row[idx_prog]).strip() if idx_prog is not None and idx_prog < len(row) and row[idx_prog] is not None else ""
 
                         if not task_name or task_name.lower() in ["stt", "no.", "task title", "hạng mục / công việc"]:
                             continue
 
-                        if progress:
+                        progress_val = None
+                        if progress_raw:
                             try:
-                                p_val = float(progress)
-                                progress_str = f"{int(p_val * 100)}%" if p_val <= 1.0 else f"{progress}%"
+                                p_num = float(progress_raw.replace('%', '').strip())
+                                progress_val = p_num if p_num <= 1.0 else p_num / 100.0
                             except ValueError:
-                                progress_str = progress
-                        elif status and status.replace('.', '', 1).replace('%', '').strip().isdigit():
+                                pass
+
+                        if progress_val is None and status_raw:
                             try:
-                                p_val = float(status.replace('%', '').strip())
-                                progress_str = f"{int(p_val * 100)}%" if p_val <= 1.0 else f"{int(p_val)}%"
-                                status = "Completed" if p_val >= 1.0 or p_val == 100 else ("In Progress" if p_val > 0 else "Pending")
+                                p_num = float(status_raw.replace('%', '').strip())
+                                progress_val = p_num if p_num <= 1.0 else p_num / 100.0
                             except ValueError:
-                                progress_str = "0%"
+                                pass
+
+                        if status_raw and not status_raw.replace('.', '', 1).replace('%', '').strip().isdigit():
+                            s_clean = status_raw.lower()
+                            if any(k in s_clean for k in ["done", "completed", "hoàn thành"]):
+                                status = "Completed"
+                            elif any(k in s_clean for k in ["inprocess", "in progress", "in-progress", "đang làm"]):
+                                status = "In Progress"
+                            elif any(k in s_clean for k in ["hold", "tạm dừng", "delay"]):
+                                status = "On Hold"
+                            elif any(k in s_clean for k in ["pending", "chờ", "chưa"]):
+                                status = "Pending"
+                            else:
+                                status = status_raw
+                        elif progress_val is not None:
+                            if progress_val >= 1.0:
+                                status = "Completed"
+                            elif progress_val > 0.0:
+                                status = "In Progress"
+                            else:
+                                status = "Pending"
+                        else:
+                            status = "Pending"
+
+                        if progress_val is not None:
+                            progress_str = f"{int(round(progress_val * 100))}%"
                         else:
                             progress_str = "0%"
 
