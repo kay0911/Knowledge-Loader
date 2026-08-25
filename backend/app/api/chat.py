@@ -56,12 +56,11 @@ def get_chat_history(
         db.query(
             ChatLog.session_id,
             sql_func.min(ChatLog.created_at).label("first_created"),
+            sql_func.max(ChatLog.created_at).label("last_updated"),
         )
         .filter(ChatLog.session_id.isnot(None))
         .filter(ChatLog.user_id == current_user.id)
         .group_by(ChatLog.session_id)
-        .order_by(sql_func.max(ChatLog.created_at).desc())
-        .limit(limit)
         .subquery()
     )
 
@@ -69,7 +68,8 @@ def get_chat_history(
         db.query(ChatLog)
         .join(first_id_subq, ChatLog.session_id == first_id_subq.c.session_id)
         .filter(ChatLog.created_at == first_id_subq.c.first_created)
-        .order_by(ChatLog.created_at.desc())
+        .order_by(first_id_subq.c.last_updated.desc())
+        .limit(limit)
         .all()
     )
     return logs
