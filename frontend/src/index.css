@@ -68,6 +68,10 @@
   --table-border: #e2e8f0;
 }
 
+html {
+  font-size: 85%;
+}
+
 body {
   margin: 0;
   display: flex;
@@ -76,6 +80,16 @@ body {
   background-color: var(--main-bg);
   color: var(--text-color);
   transition: background-color 0.25s, color 0.25s;
+  zoom: 0.85;
+}
+
+@supports not (zoom: 0.85) {
+  #root {
+    transform: scale(0.85);
+    transform-origin: top left;
+    width: 117.6%;
+    height: 117.6%;
+  }
 }
 
 #root {
