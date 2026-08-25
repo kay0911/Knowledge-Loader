@@ -69,7 +69,7 @@
 }
 
 html {
-  font-size: 85%;
+  font-size: 14px;
 }
 
 body {
@@ -80,16 +80,6 @@ body {
   background-color: var(--main-bg);
   color: var(--text-color);
   transition: background-color 0.25s, color 0.25s;
-  zoom: 0.85;
-}
-
-@supports not (zoom: 0.85) {
-  #root {
-    transform: scale(0.85);
-    transform-origin: top left;
-    width: 117.6%;
-    height: 117.6%;
-  }
 }
 
 #root {
@@ -313,14 +303,14 @@ body {
 }
 
 .chatgpt-input-container {
-  max-width: 768px;
-  width: 90%;
+  max-width: 880px;
+  width: 92%;
   margin: 0 auto;
   position: relative;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: 26px;
-  padding: 10px 16px;
+  padding: 8px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -339,7 +329,7 @@ body {
   border: none;
   color: var(--input-color);
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   outline: none;
   resize: none;
   max-height: 200px;
@@ -374,7 +364,7 @@ body {
 .chatgpt-message-row {
   width: 100%;
   display: flex;
-  padding: 24px 0;
+  padding: 16px 0;
   border-bottom: 1px solid var(--message-border);
 }
 
@@ -387,13 +377,13 @@ body {
 }
 
 .chatgpt-message-content {
-  max-width: 768px;
-  width: 90%;
+  max-width: 880px;
+  width: 92%;
   margin: 0 auto;
   display: flex;
-  gap: 20px;
-  font-size: 0.975rem;
-  line-height: 1.6;
+  gap: 16px;
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 
 .chatgpt-avatar {
