@@ -1038,6 +1038,10 @@ class ParserService:
                         if current_char_count + row_len >= 1150 or len(batch_rows) >= 20:
                             source_order += 1
                             table_content = header_md + "".join(batch_rows)
+                            if is_large_sheet:
+                                remaining_rows = max(0, total_sheet_rows - data_rows_count)
+                                table_content += f"\n\n*(Lưu ý: Sheet '{sheet_name}' có tổng cộng {total_sheet_rows} dòng ({total_sheet_chars} ký tự). Đã trích xuất {data_rows_count} dòng đại diện trong chunk này, còn {remaining_rows} dòng dữ liệu khác chưa hiển thị để tránh quá tải CSDL.)*"
+                            
                             sheet_blocks.append(NormalizedBlock(
                                 block_id=str(uuid.uuid4()),
                                 source_type="xlsx",
@@ -1061,6 +1065,10 @@ class ParserService:
                     if batch_rows and (not is_large_sheet or not sheet_blocks):
                         source_order += 1
                         table_content = header_md + "".join(batch_rows)
+                        if is_large_sheet:
+                            remaining_rows = max(0, total_sheet_rows - data_rows_count)
+                            table_content += f"\n\n*(Lưu ý: Sheet '{sheet_name}' có tổng cộng {total_sheet_rows} dòng ({total_sheet_chars} ký tự). Đã trích xuất {data_rows_count} dòng đại diện trong chunk này, còn {remaining_rows} dòng dữ liệu khác chưa hiển thị để tránh quá tải CSDL.)*"
+
                         sheet_blocks.append(NormalizedBlock(
                             block_id=str(uuid.uuid4()),
                             source_type="xlsx",
@@ -1074,16 +1082,6 @@ class ParserService:
                         ))
 
                     if is_large_sheet:
-                        source_order += 1
-                        sheet_blocks.append(NormalizedBlock(
-                            block_id=str(uuid.uuid4()),
-                            source_type="xlsx",
-                            block_type="paragraph",
-                            content=f"*(Lưu ý: Sheet '{sheet_name}' có tổng cộng {total_sheet_rows} dòng ({total_sheet_chars} ký tự). Hệ thống đã áp dụng cơ chế bảo vệ Large Sheet: chỉ trích xuất 1 chunk đầu tiên đại diện cho tab này để tránh quá tải CSDL.)*",
-                            heading_path=[f"Sheet: {sheet_name}", tbl_title or f"Bảng {tbl_idx}"],
-                            sheet_name=sheet_name,
-                            source_order=source_order
-                        ))
                         # Large sheet guardrail: Stop processing further tables in this sheet
                         break
 
