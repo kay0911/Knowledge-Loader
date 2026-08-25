@@ -698,13 +698,13 @@ class ParserService:
                     logger.warning(f"Error finding table header in sheet '{sheet_name}': {h_err}")
                     continue
 
-                # Detect if this sheet is a Timeline / Action Plan sheet (>15 cols & 8+ date/week headers present)
+                # Detect if this sheet is a Timeline / Action Plan sheet (>12 cols & date/week headers present)
                 is_timeline_sheet = False
                 month_headers = {}
                 timeline_col_map = {}
-                core_headers = []
+                core_headers_set = set()
 
-                if max_cols_count >= 15:
+                if max_cols_count >= 12:
                     # Scan row 3 for month group headers
                     current_month = ""
                     row3 = rows_list[2] if len(rows_list) > 2 else []
@@ -715,35 +715,43 @@ class ParserService:
                                 current_month = val_str
                         month_headers[idx_c] = current_month
 
-                    # Scan header row for date/week columns
-                    header_row_vals = rows_list[best_header_row_idx]
+                    # Scan top 10 rows for date/week columns & core column keywords
                     date_col_count = 0
-                    for idx_c, val_c in enumerate(header_row_vals):
-                        val_str = str(val_c).strip() if val_c is not None else ""
-                        is_date_col = False
-                        date_formatted = None
+                    for r_idx, r_sample in enumerate(rows_list[:10]):
+                        if not r_sample:
+                            continue
+                        for idx_c, val_c in enumerate(r_sample):
+                            if val_c is None or not str(val_c).strip():
+                                continue
+                            val_str = str(val_c).strip()
 
-                        if isinstance(val_c, (datetime.datetime, datetime.date)):
-                            is_date_col = True
-                            date_formatted = val_c.strftime("%d/%m/%Y")
-                        elif re.search(r'\d{4}-\d{2}-\d{2}', val_str) or re.search(r'\d{2}/\d{2}/\d{4}', val_str) or re.match(r'W\d{1,2}', val_str, re.IGNORECASE):
-                            is_date_col = True
-                            date_formatted = val_str.split(" ")[0]
-                        elif idx_c >= 4 and re.match(r'^\d{1,2}$', val_str) and 1 <= int(val_str) <= 53:
-                            is_date_col = True
-                            date_formatted = f"Tuần {val_str}"
+                            # Check core task keywords
+                            if idx_c < 10 and any(kw in val_str.upper() for kw in ["NO", "STT", "PROJECT", "DỰ ÁN", "TASK", "CÔNG VIỆC", "TEAM", "PERSON", "PIC", "STATUS", "TRẠNG THÁI", "HẠNG MỤC"]):
+                                core_headers_set.add(val_str)
 
-                        if is_date_col and idx_c >= 4:
-                            date_col_count += 1
-                            m_str = month_headers.get(idx_c, "")
-                            timeline_col_map[idx_c] = {
-                                "col_name": date_formatted or val_str or f"W{idx_c+1}",
-                                "month": m_str
-                            }
-                        elif idx_c < 6:
-                            core_headers.append((idx_c, val_str))
+                            is_date_col = False
+                            date_formatted = None
 
-                    if date_col_count >= 8 and len(core_headers) >= 2:
+                            if isinstance(val_c, (datetime.datetime, datetime.date)):
+                                is_date_col = True
+                                date_formatted = val_c.strftime("%d/%m/%Y")
+                            elif re.search(r'\d{1,2}-[Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec]{3}-\d{2,4}', val_str, re.IGNORECASE) or re.search(r'\d{4}-\d{2}-\d{2}', val_str) or re.search(r'\d{1,2}/\d{1,2}/\d{2,4}', val_str) or re.match(r'W\d{1,2}', val_str, re.IGNORECASE):
+                                is_date_col = True
+                                date_formatted = val_str.split(" ")[0]
+                            elif idx_c >= 4 and re.match(r'^\d{1,2}$', val_str) and 1 <= int(val_str) <= 31:
+                                is_date_col = True
+                                date_formatted = f"Ngày {val_str}"
+
+                            if is_date_col and idx_c >= 4:
+                                date_col_count += 1
+                                if idx_c not in timeline_col_map:
+                                    m_str = month_headers.get(idx_c, "")
+                                    timeline_col_map[idx_c] = {
+                                        "col_name": date_formatted or val_str or f"W{idx_c+1}",
+                                        "month": m_str
+                                    }
+
+                    if (date_col_count >= 4 or len(timeline_col_map) >= 4) and len(core_headers_set) >= 1:
                         is_timeline_sheet = True
 
                 # ==================================================
