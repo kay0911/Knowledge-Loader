@@ -1016,11 +1016,9 @@ class ParserService:
                     is_key_value = len(active_col_indices) <= 2 and (best_score <= 2 or len(active_col_indices) == 1)
 
                     if is_key_value:
-                        # Format as natural Markdown Key-Value Bullet Points
+                        # Format as simple raw pipe-separated text lines (e.g. "a | b")
                         kv_lines = []
                         all_rows_to_process = tbl_rows if best_score <= 0 else tbl_rows[best_header_idx:]
-                        if is_large_sheet:
-                            all_rows_to_process = all_rows_to_process[:15]
 
                         for r in all_rows_to_process:
                             vals = [
@@ -1031,19 +1029,11 @@ class ParserService:
                             non_empty_vals = [v for v in vals if v]
                             if not non_empty_vals:
                                 continue
-                            if len(non_empty_vals) == 1:
-                                kv_lines.append(f"- {non_empty_vals[0]}")
-                            else:
-                                k, v = non_empty_vals[0], " : ".join(non_empty_vals[1:])
-                                kv_lines.append(f"- **{k}:** {v}")
+                            kv_lines.append(" | ".join(non_empty_vals))
 
                         if kv_lines:
                             title_prefix = f"### Sheet: {sheet_name} - {tbl_title}\n\n" if tbl_title else f"### Sheet: {sheet_name}\n\n"
                             kv_content = title_prefix + "\n".join(kv_lines)
-                            if is_large_sheet:
-                                remaining_rows = max(0, total_sheet_rows - len(all_rows_to_process))
-                                kv_content += f"\n\n*(Lưu ý: Sheet '{sheet_name}' có tổng cộng {total_sheet_rows:,} dòng ({total_sheet_chars:,} ký tự). Đã trích xuất {len(all_rows_to_process)} dòng đại diện trong chunk này, còn {remaining_rows:,} dòng dữ liệu khác chưa hiển thị để tránh quá tải CSDL.)*"
-
                             source_order += 1
                             sheet_blocks.append(NormalizedBlock(
                                 block_id=str(uuid.uuid4()),
@@ -1056,8 +1046,6 @@ class ParserService:
                                 requires_llm_summary=False,
                                 source_order=source_order
                             ))
-                        if is_large_sheet:
-                            break
                         continue
 
                     # Standard Multi-Column Pipe Table Mode
@@ -1095,6 +1083,10 @@ class ParserService:
                         row_line = "| " + " | ".join(row_vals) + " |\n"
                         row_len = len(row_line)
                         data_rows_count += 1
+
+                        if is_large_sheet and (current_char_count + row_len >= 800 or len(batch_rows) >= 3):
+                            # LARGE SHEET GUARDRAIL: Stop accumulating rows once character budget reaches ~800 chars so chunk is EXACTLY 1 chunk (< 1200 chars total)
+                            break
 
                         if not is_large_sheet and (current_char_count + row_len >= 1150 or len(batch_rows) >= 20):
                             source_order += 1
