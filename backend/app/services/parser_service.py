@@ -1012,6 +1012,55 @@ class ParserService:
                     if not active_col_indices:
                         active_col_indices = list(range(min(max_c, 5)))
 
+                    # Detect if segment is a 2-column Key-Value / Summary List vs a True Grid Table
+                    is_key_value = len(active_col_indices) <= 2 and (best_score <= 2 or len(active_col_indices) == 1)
+
+                    if is_key_value:
+                        # Format as natural Markdown Key-Value Bullet Points
+                        kv_lines = []
+                        all_rows_to_process = tbl_rows if best_score <= 0 else tbl_rows[best_header_idx:]
+                        if is_large_sheet:
+                            all_rows_to_process = all_rows_to_process[:15]
+
+                        for r in all_rows_to_process:
+                            vals = [
+                                ParserService._format_excel_cell_value(r[c_i])
+                                if c_i < len(r) and r[c_i] is not None else ""
+                                for c_i in active_col_indices
+                            ]
+                            non_empty_vals = [v for v in vals if v]
+                            if not non_empty_vals:
+                                continue
+                            if len(non_empty_vals) == 1:
+                                kv_lines.append(f"- {non_empty_vals[0]}")
+                            else:
+                                k, v = non_empty_vals[0], " : ".join(non_empty_vals[1:])
+                                kv_lines.append(f"- **{k}:** {v}")
+
+                        if kv_lines:
+                            title_prefix = f"### Sheet: {sheet_name} - {tbl_title}\n\n" if tbl_title else f"### Sheet: {sheet_name}\n\n"
+                            kv_content = title_prefix + "\n".join(kv_lines)
+                            if is_large_sheet:
+                                remaining_rows = max(0, total_sheet_rows - len(all_rows_to_process))
+                                kv_content += f"\n\n*(Lưu ý: Sheet '{sheet_name}' có tổng cộng {total_sheet_rows:,} dòng ({total_sheet_chars:,} ký tự). Đã trích xuất {len(all_rows_to_process)} dòng đại diện trong chunk này, còn {remaining_rows:,} dòng dữ liệu khác chưa hiển thị để tránh quá tải CSDL.)*"
+
+                            source_order += 1
+                            sheet_blocks.append(NormalizedBlock(
+                                block_id=str(uuid.uuid4()),
+                                source_type="xlsx",
+                                block_type="paragraph",
+                                content=kv_content.strip(),
+                                heading_path=[f"Sheet: {sheet_name}", tbl_title or f"Tóm tắt {tbl_idx}"],
+                                sheet_name=sheet_name,
+                                table_id=f"sheet_{sheet_name}_kv_{tbl_idx}",
+                                requires_llm_summary=False,
+                                source_order=source_order
+                            ))
+                        if is_large_sheet:
+                            break
+                        continue
+
+                    # Standard Multi-Column Pipe Table Mode
                     # Headers
                     segment_headers = []
                     for c_i in active_col_indices:
