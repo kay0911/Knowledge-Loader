@@ -212,29 +212,29 @@ export default function AdminUsersPage() {
 
       {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px' }}>
-          <span style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>TỔNG TÀI KHOẢN</span>
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '12px', padding: '16px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)' }}>
+          <span style={{ color: 'var(--text-light)', fontSize: '0.8rem', fontWeight: 600 }}>TỔNG TÀI KHOẢN</span>
           <p style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-color)', marginTop: '4px' }}>{users.length}</p>
         </div>
-        <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px' }}>
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '12px', padding: '16px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)' }}>
           <span style={{ color: '#f87171', fontSize: '0.8rem', fontWeight: 600 }}>QUẢN TRỊ VIÊN (ADMIN)</span>
           <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#f87171', marginTop: '4px' }}>{totalAdmins}</p>
         </div>
-        <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px' }}>
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '12px', padding: '16px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)' }}>
           <span style={{ color: '#38bdf8', fontSize: '0.8rem', fontWeight: 600 }}>QUẢN TRỊ PHỤ (SUBADMIN)</span>
           <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#38bdf8', marginTop: '4px' }}>{totalSubadmins}</p>
         </div>
-        <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px' }}>
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '12px', padding: '16px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)' }}>
           <span style={{ color: '#34d399', fontSize: '0.8rem', fontWeight: 600 }}>NGƯỜI DÙNG (USER)</span>
           <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#34d399', marginTop: '4px' }}>{totalUsersRole}</p>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px', marginBottom: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '12px', padding: '16px', marginBottom: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)' }}>
         <form onSubmit={handleSearchSubmit} style={{ flex: 1, minWidth: '240px', display: 'flex', gap: '8px' }}>
           <div style={{ position: 'relative', flex: 1 }}>
-            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '18px', height: '18px', color: '#64748b' }} />
+            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '18px', height: '18px', color: 'var(--text-light)' }} />
             <input
               type="text"
               value={search}
@@ -243,28 +243,29 @@ export default function AdminUsersPage() {
               style={{
                 width: '100%',
                 padding: '10px 12px 10px 40px',
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--input-border)',
                 borderRadius: '8px',
                 color: 'var(--text-color)',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                outline: 'none'
               }}
             />
           </div>
-          <button type="submit" style={{ padding: '10px 16px', background: 'rgba(255, 255, 255, 0.1)', border: 'none', borderRadius: '8px', color: 'var(--text-color)', cursor: 'pointer' }}>
+          <button type="submit" style={{ padding: '10px 16px', background: 'var(--sub-box-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', cursor: 'pointer' }}>
             Tìm kiếm
           </button>
         </form>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Filter style={{ width: '16px', height: '16px', color: '#94a3b8' }} />
+          <Filter style={{ width: '16px', height: '16px', color: 'var(--text-light)' }} />
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
             style={{
               padding: '10px 14px',
-              background: 'rgba(15, 23, 42, 0.6)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: 'var(--input-bg)',
+              border: '1px solid var(--input-border)',
               borderRadius: '8px',
               color: 'var(--text-color)',
               outline: 'none'
@@ -279,10 +280,10 @@ export default function AdminUsersPage() {
       </div>
 
       {/* User Table */}
-      <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ background: 'rgba(15, 23, 42, 0.6)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', color: '#94a3b8', fontSize: '0.85rem' }}>
+            <tr style={{ background: 'var(--sub-box-bg)', borderBottom: '1px solid var(--table-border)', color: 'var(--text-light)', fontSize: '0.85rem' }}>
               <th style={{ padding: '14px 16px' }}>TÀI KHOẢN</th>
               <th style={{ padding: '14px 16px' }}>HỌ VÀ TÊN</th>
               <th style={{ padding: '14px 16px' }}>VAI TRÒ (ROLE)</th>
@@ -371,69 +372,69 @@ export default function AdminUsersPage() {
 
       {/* Create User Modal */}
       {showCreateModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '480px', background: 'var(--card-bg, #1e293b)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '16px', padding: '24px' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ width: '100%', maxWidth: '480px', background: 'var(--modal-bg)', border: '1px solid var(--card-border)', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <UserPlus style={{ width: '20px', height: '20px', color: '#10b981' }} />
                 Tạo tài khoản mới
               </h3>
-              <X onClick={() => setShowCreateModal(false)} style={{ cursor: 'pointer', color: '#94a3b8' }} />
+              <X onClick={() => setShowCreateModal(false)} style={{ cursor: 'pointer', color: 'var(--text-light)' }} />
             </div>
 
             <form onSubmit={handleCreateUser}>
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Tên đăng nhập *</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Tên đăng nhập *</label>
                 <input
                   type="text"
                   required
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   placeholder="john_doe..."
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Mật khẩu ban đầu *</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Mật khẩu ban đầu *</label>
                 <input
                   type="password"
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="Mật khẩu tối thiểu 4 ký tự..."
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Họ và tên</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Họ và tên</label>
                 <input
                   type="text"
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   placeholder="Nguyễn Văn A..."
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Email</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Email</label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="user@company.com..."
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Vai trò (Role)</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Vai trò (Role)</label>
                 <select
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box', outline: 'none' }}
                 >
                   <option value="USER">USER (Chỉ Chat & Hồ sơ)</option>
                   <option value="SUBADMIN">SUBADMIN (Quản lý tài liệu & Người dùng)</option>
@@ -442,7 +443,7 @@ export default function AdminUsersPage() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={() => setShowCreateModal(false)} style={{ padding: '10px 18px', background: 'rgba(255, 255, 255, 0.1)', border: 'none', borderRadius: '8px', color: 'var(--text-color)', cursor: 'pointer' }}>Hủy</button>
+                <button type="button" onClick={() => setShowCreateModal(false)} style={{ padding: '10px 18px', background: 'var(--sub-box-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', cursor: 'pointer' }}>Hủy</button>
                 <button type="submit" style={{ padding: '10px 20px', background: '#10b981', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Tạo tài khoản</button>
               </div>
             </form>
@@ -452,54 +453,54 @@ export default function AdminUsersPage() {
 
       {/* Edit User Modal */}
       {showEditModal && selectedUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '480px', background: 'var(--card-bg, #1e293b)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '16px', padding: '24px' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ width: '100%', maxWidth: '480px', background: 'var(--modal-bg)', border: '1px solid var(--card-border)', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Edit style={{ width: '20px', height: '20px', color: '#38bdf8' }} />
                 Chỉnh sửa tài khoản @{selectedUser.username}
               </h3>
-              <X onClick={() => setShowEditModal(false)} style={{ cursor: 'pointer', color: '#94a3b8' }} />
+              <X onClick={() => setShowEditModal(false)} style={{ cursor: 'pointer', color: 'var(--text-light)' }} />
             </div>
 
             <form onSubmit={handleEditUser}>
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Họ và tên</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Họ và tên</label>
                 <input
                   type="text"
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Email</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Email</label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Reset Mật khẩu mới (Bỏ trống nếu không đổi)</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Reset Mật khẩu mới (Bỏ trống nếu không đổi)</label>
                 <input
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="Nhập mật khẩu mới..."
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Vai trò (Role)</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Vai trò (Role)</label>
                 <select
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: '8px', color: 'var(--text-color)', boxSizing: 'border-box', outline: 'none' }}
                 >
                   <option value="USER">USER (Chỉ Chat & Hồ sơ)</option>
                   <option value="SUBADMIN">SUBADMIN (Quản lý tài liệu & Người dùng)</option>
@@ -508,7 +509,7 @@ export default function AdminUsersPage() {
               </div>
 
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#cbd5e1', fontSize: '0.9rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-light)', fontSize: '0.9rem' }}>
                   <input
                     type="checkbox"
                     checked={formData.is_active}

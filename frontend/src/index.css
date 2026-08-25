@@ -41,30 +41,30 @@
 
 .light-theme {
   color-scheme: light;
-  --main-bg: #ffffff;
-  --sidebar-bg: #f9f9f9;
-  --sidebar-border: #e3e3e3;
-  --sidebar-color: #2d2d2d;
-  --text-color: #0d0d0d;
-  --text-light: #6e6e6e;
-  --input-bg: #f4f4f4;
-  --input-border: rgba(0, 0, 0, 0.1);
-  --input-color: #0d0d0d;
-  --message-assistant-bg: #f7f7f8;
-  --message-border: rgba(0, 0, 0, 0.05);
+  --main-bg: #f8fafc;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #cbd5e1;
+  --sidebar-color: #1e293b;
+  --text-color: #0f172a;
+  --text-light: #475569;
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --input-color: #0f172a;
+  --message-assistant-bg: #f1f5f9;
+  --message-border: #e2e8f0;
   --card-bg: #ffffff;
   --card-border: #e2e8f0;
-  --card-hover-bg: #f8fafc;
+  --card-hover-bg: #f1f5f9;
   --panel-bg: #ffffff;
-  --btn-icon-hover: rgba(0, 0, 0, 0.05);
-  --btn-icon-color: #555555;
-  --sidebar-item-hover: rgba(0, 0, 0, 0.05);
-  --sidebar-item-active: #ececf1;
-  --sidebar-item-active-color: #000;
+  --btn-icon-hover: rgba(0, 0, 0, 0.06);
+  --btn-icon-color: #475569;
+  --sidebar-item-hover: #f1f5f9;
+  --sidebar-item-active: #e0e7ff;
+  --sidebar-item-active-color: #4338ca;
   --welcome-card-bg: #ffffff;
-  --welcome-card-hover-bg: #f7f7f8;
+  --welcome-card-hover-bg: #f8fafc;
   --modal-bg: #ffffff;
-  --sub-box-bg: #f8fafc;
+  --sub-box-bg: #f1f5f9;
   --table-border: #e2e8f0;
 }
 

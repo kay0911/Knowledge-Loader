@@ -108,15 +108,16 @@ export default function ProfilePage() {
 
       {/* User Info Card */}
       <div style={{
-        background: 'var(--card-bg, #1e293b)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        background: 'var(--card-bg)',
+        border: '1px solid var(--card-border)',
         borderRadius: '16px',
         padding: '24px',
         marginBottom: '24px',
         display: 'flex',
         alignItems: 'center',
         gap: '20px',
-        flexWrap: 'wrap'
+        flexWrap: 'wrap',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
       }}>
         <div style={{
           width: '72px',
@@ -138,7 +139,7 @@ export default function ProfilePage() {
           <h2 style={{ fontSize: '1.3rem', fontWeight: 600, color: 'var(--text-color)', marginBottom: '4px' }}>
             {user?.full_name || user?.username}
           </h2>
-          <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '8px' }}>
+          <p style={{ color: 'var(--text-light)', fontSize: '0.9rem', marginBottom: '8px' }}>
             @{user?.username}
           </p>
 
@@ -162,11 +163,12 @@ export default function ProfilePage() {
 
       {/* Profile Name Form */}
       <div style={{
-        background: 'var(--card-bg, #1e293b)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        background: 'var(--card-bg)',
+        border: '1px solid var(--card-border)',
         borderRadius: '16px',
         padding: '24px',
-        marginBottom: '24px'
+        marginBottom: '24px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
       }}>
         <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-color)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Edit3 style={{ width: '18px', height: '18px', color: '#10b981' }} />
@@ -174,7 +176,7 @@ export default function ProfilePage() {
         </h3>
         <form onSubmit={handleUpdateName}>
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Họ và tên hiển thị</label>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Họ và tên hiển thị</label>
             <input
               type="text"
               value={fullName}
@@ -183,11 +185,12 @@ export default function ProfilePage() {
               style={{
                 width: '100%',
                 padding: '10px 14px',
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--input-border)',
                 borderRadius: '8px',
                 color: 'var(--text-color)',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                outline: 'none'
               }}
             />
           </div>
@@ -215,10 +218,11 @@ export default function ProfilePage() {
 
       {/* Change Password Form */}
       <div style={{
-        background: 'var(--card-bg, #1e293b)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        background: 'var(--card-bg)',
+        border: '1px solid var(--card-border)',
         borderRadius: '16px',
-        padding: '24px'
+        padding: '24px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
       }}>
         <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-color)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Lock style={{ width: '18px', height: '18px', color: '#38bdf8' }} />
@@ -226,7 +230,7 @@ export default function ProfilePage() {
         </h3>
         <form onSubmit={handleChangePassword}>
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Mật khẩu hiện tại *</label>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Mật khẩu hiện tại *</label>
             <input
               type="password"
               required
@@ -236,17 +240,18 @@ export default function ProfilePage() {
               style={{
                 width: '100%',
                 padding: '10px 14px',
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--input-border)',
                 borderRadius: '8px',
                 color: 'var(--text-color)',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                outline: 'none'
               }}
             />
           </div>
 
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Mật khẩu mới *</label>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Mật khẩu mới *</label>
             <input
               type="password"
               required
@@ -256,17 +261,18 @@ export default function ProfilePage() {
               style={{
                 width: '100%',
                 padding: '10px 14px',
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--input-border)',
                 borderRadius: '8px',
                 color: 'var(--text-color)',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                outline: 'none'
               }}
             />
           </div>
 
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '6px' }}>Xác nhận mật khẩu mới *</label>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '6px' }}>Xác nhận mật khẩu mới *</label>
             <input
               type="password"
               required
@@ -276,11 +282,12 @@ export default function ProfilePage() {
               style={{
                 width: '100%',
                 padding: '10px 14px',
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--input-border)',
                 borderRadius: '8px',
                 color: 'var(--text-color)',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                outline: 'none'
               }}
             />
           </div>
