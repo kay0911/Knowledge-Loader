@@ -492,16 +492,24 @@ class ParserService:
         if any(lower_val.startswith(k) for k in ["ghi chú", "chú thích", "note", "chữ xanh", "*", "seminar", "mai show", "hướng dẫn"]):
             return False
 
-        # Check for explicit title signatures:
-        # 1. Numbered section title: "1. PHÂN BỔ...", "2. WORKLOAD...", "Section 1", "Table 2", "Checklist..."
+        # If a row has multiple non-empty cells (e.g. ['Tổng số báo cáo', '690']), it is a Data/Key-Value row, NOT a Section Title banner!
+        if len(non_empty) > 1:
+            return False
+
+        # Single cell section title rules:
+        # 1. Decorative banners e.g. "━━ Phân loại... ━━", "📊 Thống kê..."
+        if any(k in first_val for k in ["━━", "══", "──", "---"]) or first_val.startswith(("📊", "📋", "📌", "📁", "📑", "💡", "🔍")):
+            return True
+
+        # 2. Numbered section title: "1. PHÂN BỔ...", "2. WORKLOAD...", "Section 1", "Table 2", "Checklist..."
         if re.match(r'^(?:\d+[\.\:]|Phần|Bảng|Section|Table|Checklist)\s*', first_val, re.IGNORECASE):
             return True
             
-        # 2. ALL CAPS banner text like "CHECKLIST TỪNG DỰ ÁN – NGUỒN GỐC"
+        # 3. ALL CAPS banner text like "CHECKLIST TỪNG DỰ ÁN – NGUỒN GỐC"
         if first_val.isupper() and len(first_val) >= 5:
             return True
             
-        # 3. Short concise title header (< 60 chars) with title case (no period, no equation)
+        # 4. Short concise single-cell title header (< 60 chars) with title case (no period, no equation)
         if len(first_val) < 60 and not first_val.endswith('.') and not re.search(r'\=\s*\d+', first_val):
             return True
 
@@ -986,6 +994,10 @@ class ParserService:
                     header_row = tbl_rows[best_header_idx]
                     data_rows = tbl_rows[best_header_idx + 1:]
 
+                    if is_large_sheet:
+                        # Cap data_rows to top 15 rows so entire table + note fits inside EXACTLY 1 single NormalizedBlock
+                        data_rows = data_rows[:15]
+
                     # Active column indices for this segment
                     max_c = max(len(r) for r in tbl_rows)
                     active_col_indices = []
@@ -1035,13 +1047,9 @@ class ParserService:
                         row_len = len(row_line)
                         data_rows_count += 1
 
-                        if current_char_count + row_len >= 1150 or len(batch_rows) >= 20:
+                        if not is_large_sheet and (current_char_count + row_len >= 1150 or len(batch_rows) >= 20):
                             source_order += 1
                             table_content = header_md + "".join(batch_rows)
-                            if is_large_sheet:
-                                remaining_rows = max(0, total_sheet_rows - data_rows_count)
-                                table_content += f"\n\n*(Lưu ý: Sheet '{sheet_name}' có tổng cộng {total_sheet_rows} dòng ({total_sheet_chars} ký tự). Đã trích xuất {data_rows_count} dòng đại diện trong chunk này, còn {remaining_rows} dòng dữ liệu khác chưa hiển thị để tránh quá tải CSDL.)*"
-                            
                             sheet_blocks.append(NormalizedBlock(
                                 block_id=str(uuid.uuid4()),
                                 source_type="xlsx",
@@ -1055,19 +1063,16 @@ class ParserService:
                             ))
                             batch_rows = [row_line]
                             current_char_count = len(header_md) + row_len
-                            if is_large_sheet:
-                                # LARGE SHEET GUARDRAIL: Keep 1st single chunk only and stop parsing this sheet!
-                                break
                         else:
                             batch_rows.append(row_line)
                             current_char_count += row_len
 
-                    if batch_rows and (not is_large_sheet or not sheet_blocks):
+                    if batch_rows:
                         source_order += 1
                         table_content = header_md + "".join(batch_rows)
                         if is_large_sheet:
                             remaining_rows = max(0, total_sheet_rows - data_rows_count)
-                            table_content += f"\n\n*(Lưu ý: Sheet '{sheet_name}' có tổng cộng {total_sheet_rows} dòng ({total_sheet_chars} ký tự). Đã trích xuất {data_rows_count} dòng đại diện trong chunk này, còn {remaining_rows} dòng dữ liệu khác chưa hiển thị để tránh quá tải CSDL.)*"
+                            table_content += f"\n\n*(Lưu ý: Sheet '{sheet_name}' có tổng cộng {total_sheet_rows:,} dòng ({total_sheet_chars:,} ký tự). Đã trích xuất {data_rows_count} dòng đại diện trong chunk này, còn {remaining_rows:,} dòng dữ liệu khác chưa hiển thị để tránh quá tải CSDL.)*"
 
                         sheet_blocks.append(NormalizedBlock(
                             block_id=str(uuid.uuid4()),
