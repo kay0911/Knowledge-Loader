@@ -1084,11 +1084,14 @@ class ParserService:
                         row_len = len(row_line)
                         data_rows_count += 1
 
-                        if is_large_sheet and (current_char_count + row_len >= 800 or len(batch_rows) >= 3):
+                        batch_rows.append(row_line)
+                        current_char_count += row_len
+
+                        if is_large_sheet and (current_char_count >= 800 or len(batch_rows) >= 3):
                             # LARGE SHEET GUARDRAIL: Stop accumulating rows once character budget reaches ~800 chars so chunk is EXACTLY 1 chunk (< 1200 chars total)
                             break
 
-                        if not is_large_sheet and (current_char_count + row_len >= 1150 or len(batch_rows) >= 20):
+                        if not is_large_sheet and (current_char_count >= 1150 or len(batch_rows) >= 20):
                             source_order += 1
                             table_content = header_md + "".join(batch_rows)
                             sheet_blocks.append(NormalizedBlock(
@@ -1102,11 +1105,8 @@ class ParserService:
                                 requires_llm_summary=False,
                                 source_order=source_order
                             ))
-                            batch_rows = [row_line]
-                            current_char_count = len(header_md) + row_len
-                        else:
-                            batch_rows.append(row_line)
-                            current_char_count += row_len
+                            batch_rows = []
+                            current_char_count = len(header_md)
 
                     if batch_rows:
                         source_order += 1
