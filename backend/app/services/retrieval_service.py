@@ -46,13 +46,16 @@ class RetrievalService:
             }
             meta["doc_id"] = str(d.id)
             meta["filename"] = d.original_file_name
+            if hasattr(d, "summary_embedding") and d.summary_embedding is not None:
+                meta["summary_embedding"] = list(d.summary_embedding)
             doc_meta_list.append(meta)
 
         from app.services.two_stage_retrieval_service import TwoStageRetrievalService
         stage_1_candidates = TwoStageRetrievalService.stage_1_route_documents(
             query=query,
             document_metadata_list=doc_meta_list,
-            top_k_docs=3
+            top_k_docs=3,
+            db=db
         )
 
         target_doc_ids = [c["metadata"]["doc_id"] for c in stage_1_candidates if "doc_id" in c.get("metadata", {})]

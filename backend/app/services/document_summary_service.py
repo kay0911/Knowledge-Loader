@@ -154,3 +154,57 @@ YÊU CẦU ĐẦU RA JSON (Chỉ trả về JSON thuần hợp lệ, không bọ
                 f"Tài liệu {filename} quy định quy trình nào?"
             ]
         }
+
+    @classmethod
+    def build_composite_summary_text(cls, doc_meta: Dict[str, Any]) -> str:
+        """
+        Formats structured metadata JSON into a single composite text block
+        specifically optimized for Summary Vector Embedding (150-250 words).
+        Gom domain, document_summary, keywords và 5 câu hỏi giả định HyDE.
+        """
+        if not doc_meta or not isinstance(doc_meta, dict):
+            return ""
+
+        filename = doc_meta.get("filename", "")
+        domain = doc_meta.get("domain", "")
+        sub_domain = doc_meta.get("sub_domain", "")
+        summary = doc_meta.get("document_summary", "").strip()
+
+        keywords = doc_meta.get("keywords", [])
+        kw_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
+
+        hyp_questions = doc_meta.get("hypothetical_questions", [])
+        hq_lines = []
+        if isinstance(hyp_questions, list):
+            for q in hyp_questions:
+                if q:
+                    hq_lines.append(f"- {q.strip()}")
+        hq_str = "\n".join(hq_lines)
+
+        domain_line = f"Lĩnh vực: {domain} | Phân khúc: {sub_domain}" if sub_domain else f"Lĩnh vực: {domain}"
+
+        composite_text = f"""Tài liệu: {filename}
+{domain_line}
+Mô tả tổng quan: {summary}
+Từ khóa chính: {kw_str}
+
+Các câu hỏi liên quan tài liệu này:
+{hq_str}""".strip()
+
+        return composite_text
+
+    @classmethod
+    def generate_summary_embedding(cls, db: Optional[Session], composite_text: str) -> Optional[List[float]]:
+        """
+        Generates a 768-dimensional vector embedding for the composite summary text using EmbeddingService.
+        """
+        if not composite_text.strip():
+            return None
+
+        try:
+            from app.services.embedding_service import EmbeddingService
+            vector = EmbeddingService.get_embedding(composite_text, db=db)
+            return vector
+        except Exception as e:
+            logger.error(f"Failed to generate summary embedding: {e}")
+            return None

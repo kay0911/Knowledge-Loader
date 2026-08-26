@@ -97,11 +97,20 @@ def process_job(db: Session, job: ProcessingJob):
                 f"{changed_chunks_count}/{total_chunks_count} changed chunks ({change_ratio*100:.1f}% >= 20% or missing metadata)."
             )
 
-        if should_resummarize:
+        if should_resummarize or not doc.summary_embedding:
             try:
                 from app.services.document_summary_service import DocumentSummaryService
-                doc_meta = DocumentSummaryService.generate_document_metadata(doc.original_file_name, chunks_data, db=db)
-                doc.metadata_summary = doc_meta
+                if should_resummarize:
+                    doc_meta = DocumentSummaryService.generate_document_metadata(doc.original_file_name, chunks_data, db=db)
+                    doc.metadata_summary = doc_meta
+                
+                if doc.metadata_summary:
+                    composite_text = DocumentSummaryService.build_composite_summary_text(doc.metadata_summary)
+                    if composite_text:
+                        sum_vec = DocumentSummaryService.generate_summary_embedding(db, composite_text)
+                        if sum_vec:
+                            doc.summary_embedding = sum_vec
+                            logger.info(f"Successfully generated & saved Summary Vector Embedding for {doc.original_file_name}")
                 logger.info(f"Successfully generated & saved Document Metadata Summary for {doc.original_file_name}")
             except Exception as meta_err:
                 logger.error(f"Failed to generate Document Metadata Summary for {doc.original_file_name}: {str(meta_err)}")
