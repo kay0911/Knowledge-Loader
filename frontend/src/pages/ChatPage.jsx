@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Send, BookOpen, Clock, AlertTriangle, Layers, 
-  Database, HelpCircle, ArrowRight, Sparkles, Plus, ArrowUp, RefreshCw, X, ChevronDown, ChevronUp
+  Database, HelpCircle, ArrowRight, Sparkles, Plus, ArrowUp, RefreshCw, X, ChevronDown, ChevronUp, ExternalLink
 } from 'lucide-react';
 
 import katex from 'katex';
@@ -320,8 +320,8 @@ function ChatPage() {
       return nums ? nums.map(n => `[S${n}]`).join('') : match;
     });
 
-    // Split by Math ($$ ... $$, $ ... $, \[ ... \], \( ... \)), inline code (`...`), bold (**...**), single asterisk italic (*...*), and citations ([S1])
-    const parts = cleanText.split(/(\$\$[\s\S]+?\$\$|\$[^\$]+?\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|`[^`]+`|\*\*.*?\*\*|\*[^\*]+?\*|\[S\d+\])/gi);
+    // Split by Math ($$ ... $$, $ ... $, \[ ... \], \( ... \)), inline code (`...`), markdown links ([text](url)), bare URLs (https://...), bold (**...**), single asterisk italic (*...*), and citations ([S1])
+    const parts = cleanText.split(/(\$\$[\s\S]+?\$\$|\$[^\$]+?\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^\s\)]+\)|https?:\/\/[^\s\)<>"]+|\*\*.*?\*\*|\*[^\*]+?\*|\[S\d+\])/gi);
     
     return parts.map((part, idx) => {
       if (!part) return null;
@@ -357,6 +357,63 @@ function ChatPage() {
           >
             {innerCode}
           </code>
+        );
+      }
+
+      // Check if Markdown Link: [linkText](https://...)
+      const mdLinkMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)$/i);
+      if (mdLinkMatch) {
+        const linkText = mdLinkMatch[1];
+        const linkUrl = mdLinkMatch[2];
+        return (
+          <a
+            key={idx}
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#38bdf8',
+              textDecoration: 'underline',
+              textUnderlineOffset: '3px',
+              wordBreak: 'break-all',
+              fontWeight: 500,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              margin: '0 2px'
+            }}
+          >
+            <span>{linkText}</span>
+            <ExternalLink style={{ width: '13px', height: '13px', flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }} />
+          </a>
+        );
+      }
+
+      // Check if Bare URL: https://... or http://...
+      const bareUrlMatch = part.match(/^(https?:\/\/[^\s\)<>"]+)$/i);
+      if (bareUrlMatch) {
+        const rawUrl = bareUrlMatch[1];
+        return (
+          <a
+            key={idx}
+            href={rawUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#38bdf8',
+              textDecoration: 'underline',
+              textUnderlineOffset: '3px',
+              wordBreak: 'break-all',
+              fontWeight: 500,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              margin: '0 2px'
+            }}
+          >
+            <span>{rawUrl}</span>
+            <ExternalLink style={{ width: '13px', height: '13px', flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }} />
+          </a>
         );
       }
 
