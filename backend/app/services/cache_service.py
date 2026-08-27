@@ -64,7 +64,7 @@ class CacheService:
                 max_doc_updated = max_doc_updated.replace(tzinfo=timezone.utc)
 
             if log_created < max_doc_updated:
-                logger.info(
+                logger.debug(
                     f"Cache Invalidation: ChatLog {log.id} (created at {log_created}) is STALE "
                     f"because cited document was updated at {max_doc_updated}."
                 )
@@ -104,9 +104,11 @@ class CacheService:
                 ChatLog.created_at >= cutoff_24h
             ).order_by(ChatLog.created_at.desc()).limit(100).all()
 
+            stale_count = 0
             for log in cached_entries:
                 # 0. Check Document-Scoped Invalidation
                 if cls._is_cache_entry_stale_for_documents(db, log):
+                    stale_count += 1
                     continue
 
                 effective_q = (log.rewritten_question or log.question or "").strip().lower()
@@ -130,7 +132,7 @@ class CacheService:
                         # Code entities differ (e.g. P4 != P5 or VF8 != VF9) -> Skip!
                         continue
 
-                    # Guard 3: Cosine Similarity >= 0.92
+                    # Guard 3: Cosine Similarity >= 0.95
                     log_vec = list(log.question_embedding)
                     cos_sim = compute_cosine_similarity(query_vector, log_vec)
 
@@ -140,6 +142,9 @@ class CacheService:
                             f"for query: '{question}' matched cached: '{effective_q}'"
                         )
                         return log.answer, log.citations or []
+
+            if stale_count > 0:
+                logger.debug(f"Bypassed {stale_count} stale cache log(s) due to updated document timestamps.")
 
         except Exception as e:
             logger.error(f"Semantic Cache check failed: {str(e)}")
