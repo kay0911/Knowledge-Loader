@@ -1,5 +1,5 @@
 import concurrent.futures
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 from sqlalchemy.orm import Session, joinedload
 from app.db.neo4j import neo4j_client
 from app.models.document import DocumentChunk, Document
@@ -13,13 +13,14 @@ class RetrievalService:
     def retrieve_hybrid(
         cls,
         db: Session,
-        query: str
+        query: str,
+        query_vector: Optional[List[float]] = None
     ) -> Tuple[List[DocumentChunk], List[Dict[str, Any]]]:
         """
         Retrieves context chunks using a Two-Stage Retrieval Pipeline:
         STAGE 1: Document Metadata Matching (Routes query to top candidate documents via Document Metadata Summaries).
         STAGE 2: In-Document Scoped Chunk Retrieval (Dense pgvector + BM25 limited ONLY to selected candidate document IDs) + Reranking.
-        Graph search is temporarily suspended ($0 Graph Overhead).
+        Reuses pre-computed query_vector to eliminate redundant embedding API calls.
         """
         logger.info(f"Starting Two-Stage Retrieval Pipeline for query: '{query}'")
         
@@ -55,7 +56,8 @@ class RetrievalService:
             query=query,
             document_metadata_list=doc_meta_list,
             top_k_docs=3,
-            db=db
+            db=db,
+            query_vec=query_vector
         )
 
         target_doc_ids = [c["metadata"]["doc_id"] for c in stage_1_candidates if "doc_id" in c.get("metadata", {})]
@@ -71,7 +73,7 @@ class RetrievalService:
 
         def task_semantic():
             try:
-                query_embedding = EmbeddingService.get_embedding(query)
+                query_embedding = query_vector if query_vector is not None else EmbeddingService.get_embedding(query, db=db)
                 return db.query(DocumentChunk).options(
                     joinedload(DocumentChunk.document)
                 ).join(

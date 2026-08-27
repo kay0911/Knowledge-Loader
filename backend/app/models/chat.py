@@ -1,4 +1,5 @@
 import uuid
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, String, Integer, DateTime, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
@@ -12,6 +13,7 @@ class ChatLog(Base):
     session_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     question = Column(Text, nullable=False)
     rewritten_question = Column(Text, nullable=True)
+    question_embedding = Column(Vector(768), nullable=True) # Question Vector Embedding for Semantic Cache
     answer = Column(Text, nullable=True)
     retrieved_chunk_ids = Column(JSON, nullable=True) # List of UUID string values of chunks
     graph_context = Column(JSON, nullable=True) # Dictionary/list containing Neo4j subgraph info

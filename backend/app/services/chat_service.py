@@ -165,8 +165,16 @@ class ChatService:
         effective_question = query_for_retrieval if (history_mode and query_for_retrieval) else question
         rewritten_val = query_for_retrieval if (history_mode and query_for_retrieval != question) else None
 
+        # Pre-compute Single Query Vector for Semantic Cache Check & Retrieval Pipeline
+        query_vector = None
+        try:
+            from app.services.embedding_service import EmbeddingService
+            query_vector = EmbeddingService.get_embedding(effective_question, db=db)
+        except Exception as emb_err:
+            logger.warning(f"Failed to pre-compute query vector embedding: {emb_err}")
+
         # 2. Fast Guardrail: Semantic Cache Check on effective_question
-        cached_result = CacheService.get_semantic_cache(db, effective_question)
+        cached_result = CacheService.get_semantic_cache(db, effective_question, query_vector=query_vector)
         if cached_result:
             cached_ans, cached_cits = cached_result
             resolved_session_id = session_id or str(uuid_mod.uuid4())
@@ -175,6 +183,7 @@ class ChatService:
                 session_id=resolved_session_id,
                 question=question,
                 rewritten_question=rewritten_val,
+                question_embedding=query_vector,
                 answer=cached_ans,
                 retrieved_chunk_ids=[],
                 graph_context=[],
@@ -201,6 +210,7 @@ class ChatService:
                 session_id=resolved_session_id,
                 question=question,
                 rewritten_question=rewritten_val,
+                question_embedding=query_vector,
                 answer=reply,
                 retrieved_chunk_ids=[],
                 graph_context=[],
@@ -220,7 +230,8 @@ class ChatService:
         logger.info(f"Executing Multi-Query Retrieval Engine across {len(sub_queries)} sub-query(ies)...")
         for idx, sub_q in enumerate(sub_queries, start=1):
             logger.info(f"  -> Sub-query [{idx}/{len(sub_queries)}]: '{sub_q}'")
-            sub_chunks, sub_rels = RetrievalService.retrieve_hybrid(db, sub_q)
+            sub_vec = query_vector if sub_q == effective_question else None
+            sub_chunks, sub_rels = RetrievalService.retrieve_hybrid(db, sub_q, query_vector=sub_vec)
             for c in sub_chunks:
                 if c.id not in seen_ids:
                     seen_ids.add(c.id)
@@ -322,8 +333,16 @@ class ChatService:
         effective_question = query_for_retrieval if (history_mode and query_for_retrieval) else question
         rewritten_val = query_for_retrieval if (history_mode and query_for_retrieval != question) else None
 
+        # Pre-compute Single Query Vector for Semantic Cache Check & Retrieval Pipeline
+        query_vector = None
+        try:
+            from app.services.embedding_service import EmbeddingService
+            query_vector = EmbeddingService.get_embedding(effective_question, db=db)
+        except Exception as emb_err:
+            logger.warning(f"Failed to pre-compute query vector embedding in stream: {emb_err}")
+
         # 2. Fast Guardrail: Semantic Cache Check on effective_question
-        cached_result = CacheService.get_semantic_cache(db, effective_question)
+        cached_result = CacheService.get_semantic_cache(db, effective_question, query_vector=query_vector)
         if cached_result:
             cached_ans, cached_cits = cached_result
             resolved_session_id = session_id or str(uuid_mod.uuid4())
@@ -332,6 +351,7 @@ class ChatService:
                 session_id=resolved_session_id,
                 question=question,
                 rewritten_question=rewritten_val,
+                question_embedding=query_vector,
                 answer=cached_ans,
                 retrieved_chunk_ids=[],
                 graph_context=[],
@@ -373,6 +393,7 @@ class ChatService:
                 session_id=resolved_session_id,
                 question=question,
                 rewritten_question=rewritten_val,
+                question_embedding=query_vector,
                 answer=reply,
                 retrieved_chunk_ids=[],
                 graph_context=[],
@@ -399,14 +420,14 @@ class ChatService:
             yield f"data: {json.dumps(metadata_payload, ensure_ascii=False)}\n\n"
             return
         
-        # 2. Query Decomposition & Parallel Retrieval Engine
-        sub_queries = QueryDecomposerService.decompose_query(query_for_retrieval)
+        # 4. Multi-query Parallel Retrieval Engine
         chunks = []
         graph_relationships = []
         seen_ids = set()
 
         for sub_q in sub_queries:
-            sub_chunks, sub_rels = RetrievalService.retrieve_hybrid(db, sub_q)
+            sub_vec = query_vector if sub_q == effective_question else None
+            sub_chunks, sub_rels = RetrievalService.retrieve_hybrid(db, sub_q, query_vector=sub_vec)
             for c in sub_chunks:
                 if c.id not in seen_ids:
                     seen_ids.add(c.id)
@@ -478,6 +499,7 @@ class ChatService:
             session_id=resolved_session_id,
             question=question,
             rewritten_question=rewritten_val,
+            question_embedding=query_vector,
             answer=answer,
             retrieved_chunk_ids=[str(c.id) for c in chunks],
             graph_context=graph_relationships,

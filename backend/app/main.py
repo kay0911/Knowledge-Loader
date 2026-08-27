@@ -70,6 +70,7 @@ try:
         logger.info("Running database migrations for Document metadata_summary...")
         conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS metadata_summary JSON;"))
         conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS summary_embedding vector(768);"))
+        conn.execute(text("ALTER TABLE chat_logs ADD COLUMN IF NOT EXISTS question_embedding vector(768);"))
         logger.info("Running database migrations for DocumentChunk metadata columns...")
         conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS heading_path JSON;"))
         conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS page_start INTEGER;"))

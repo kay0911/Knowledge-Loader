@@ -21,7 +21,8 @@ class TwoStageRetrievalService:
         query: str,
         document_metadata_list: List[Dict[str, Any]],
         top_k_docs: int = 2,
-        db: Optional[Session] = None
+        db: Optional[Session] = None,
+        query_vec: Optional[List[float]] = None
     ) -> List[Dict[str, Any]]:
         """
         Stage 1: Matches user query against Document Metadata Summaries using Hybrid Alpha-Blending Fusion:
@@ -33,9 +34,8 @@ class TwoStageRetrievalService:
         q_lower = query.lower()
         q_words = set(re.findall(r"\w+", q_lower))
         
-        # 1. Generate Query Vector Embedding for Summary Vector Search
-        query_vec = None
-        if db:
+        # 1. Reuse existing query_vec or generate if missing
+        if query_vec is None and db:
             try:
                 from app.services.embedding_service import EmbeddingService
                 query_vec = EmbeddingService.get_embedding(query, db=db)
