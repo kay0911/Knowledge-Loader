@@ -1,8 +1,11 @@
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, List, Dict, Any
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 from app.models.chat import ChatLog
+from app.models.document import Document
 from app.core.logging import logger
 
 def extract_numbers(text: str) -> set:
@@ -27,6 +30,49 @@ def compute_cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
 
 class CacheService:
     @classmethod
+    def _is_cache_entry_stale_for_documents(cls, db: Session, log: ChatLog) -> bool:
+        """
+        Checks whether a candidate cached ChatLog entry is stale/invalid because
+        any of the documents it cited was created, updated, or re-ingested AFTER the ChatLog was created.
+        """
+        if not log.created_at:
+            return True
+
+        citations = log.citations or []
+        cited_doc_ids = []
+        for c in citations:
+            if isinstance(c, dict) and c.get("document_id"):
+                try:
+                    cited_doc_ids.append(uuid.UUID(str(c["document_id"])))
+                except (ValueError, TypeError):
+                    pass
+
+        if not cited_doc_ids:
+            return False
+
+        max_doc_updated = db.query(func.max(Document.updated_at)).filter(
+            Document.id.in_(cited_doc_ids),
+            Document.status.in_(["READY", "SKIPPED"]),
+            Document.is_enabled == True
+        ).scalar()
+
+        if max_doc_updated:
+            log_created = log.created_at
+            if log_created.tzinfo is None and max_doc_updated.tzinfo is not None:
+                log_created = log_created.replace(tzinfo=timezone.utc)
+            elif log_created.tzinfo is not None and max_doc_updated.tzinfo is None:
+                max_doc_updated = max_doc_updated.replace(tzinfo=timezone.utc)
+
+            if log_created < max_doc_updated:
+                logger.info(
+                    f"Cache Invalidation: ChatLog {log.id} (created at {log_created}) is STALE "
+                    f"because cited document was updated at {max_doc_updated}."
+                )
+                return True
+
+        return False
+
+    @classmethod
     def get_semantic_cache(
         cls,
         db: Session,
@@ -37,6 +83,7 @@ class CacheService:
         """
         Hybrid Semantic Cache lookup:
         - 24-hour TTL window limit.
+        - Fine-grained Document-Scoped Cache Invalidation (Bypasses cache if cited documents were updated).
         - Strict Number & Year Match Guardrule (Preventing 2024 vs 2026 false positive hits).
         - Strict Entity Code Match Guardrule (Preventing P4 vs P5 or VF8 vs VF9 false positive hits).
         - Cosine Similarity >= similarity_threshold (0.92) or Exact String Match.
@@ -58,6 +105,10 @@ class CacheService:
             ).order_by(ChatLog.created_at.desc()).limit(100).all()
 
             for log in cached_entries:
+                # 0. Check Document-Scoped Invalidation
+                if cls._is_cache_entry_stale_for_documents(db, log):
+                    continue
+
                 effective_q = (log.rewritten_question or log.question or "").strip().lower()
                 
                 # 1. First priority: Exact String Match
