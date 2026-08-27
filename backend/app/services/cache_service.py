@@ -78,7 +78,7 @@ class CacheService:
         db: Session,
         question: str,
         query_vector: Optional[List[float]] = None,
-        similarity_threshold: float = 0.92
+        similarity_threshold: float = 0.95
     ) -> Optional[Tuple[str, List[Dict[str, Any]]]]:
         """
         Hybrid Semantic Cache lookup:
@@ -86,7 +86,7 @@ class CacheService:
         - Fine-grained Document-Scoped Cache Invalidation (Bypasses cache if cited documents were updated).
         - Strict Number & Year Match Guardrule (Preventing 2024 vs 2026 false positive hits).
         - Strict Entity Code Match Guardrule (Preventing P4 vs P5 or VF8 vs VF9 false positive hits).
-        - Cosine Similarity >= similarity_threshold (0.92) or Exact String Match.
+        - Cosine Similarity >= similarity_threshold (0.95) or Exact String Match.
         """
         if not question or len(question.strip()) < 2:
             return None
