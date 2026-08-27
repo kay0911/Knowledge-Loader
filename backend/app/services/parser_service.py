@@ -442,6 +442,8 @@ class ParserService:
             logger.error(f"Error parsing DOCX {file_path}: {str(e)}")
             raise e
 
+        return blocks
+
     @staticmethod
     def _format_excel_cell_value(val: Any) -> str:
         if val is None:
