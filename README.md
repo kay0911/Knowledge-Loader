@@ -1,8 +1,8 @@
-# 🚀 Knowledge-Loader: Enterprise Two-Stage Hybrid GraphRAG System
+# 🚀 Knowledge-Loader: Enterprise Two-Stage Hybrid RAG System
 
 **Knowledge-Loader** là hệ thống Quản trị & Tra cứu Tri thức Doanh nghiệp thế hệ mới (Next-Generation Enterprise RAG System), kết hợp giữa **Search 2 Giai đoạn (Two-Stage Hybrid Retrieval)**, **Đồ thị Tri thức (Neo4j Graph Database)**, **Vector Search (PostgreSQL pgvector)**, **Bộ Lọc Từ vựng (BM25)** và **Re-ranking (Cohere Rerank API)**.
 
----
+-------
 
 ## 🌟 Tính năng & Kiến trúc Nổi bật (Key Technical Highlights)
 
